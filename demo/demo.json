@@ -1,0 +1,19 @@
+{
+  "title": "Demo Board",
+  "editable": true,
+  "nodes": [{
+    "title": "Hello World",
+    "description": "",
+    "x": 50,
+    "y": 50
+  }, {
+    "title": "Goal",
+    "description": "",
+    "x": 150,
+    "y": 150
+  }],
+  "links": [{
+    "src": 0,
+    "target": 1
+  }]
+}
