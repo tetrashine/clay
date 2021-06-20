@@ -3,22 +3,32 @@ import Link from 'displays/link';
 import Base from 'displays/base';
 import Mouse from 'displays/mouse';
 
-import {Keyboard} from 'constants/keyboard';
+import {KeyCode} from 'constants/keycode';
 import {EditMode} from 'constants/editmode';
+import {ZoomMode} from 'constants/zoommode';
 const XMLNS = "http://www.w3.org/2000/svg";
 
-const getCoordsFromEvent = ev => {
+const getCoordsFromEvent = (ev, svg) => {
   if (ev.changedTouches) {
-    ev = ev.changedTouches[0]
+    ev = ev.changedTouches[0];
+  } else if (ev.targetTouches) {
+    ev = ev.targetTouches[0];
   }
-  return { x: ev.clientX, y: ev.clientY }
+
+  const point = svg.createSVGPoint();
+  point.x = ev.clientX;
+  point.y = ev.clientY;
+  const invertedSVGMatrix = svg.getScreenCTM().inverse();
+
+  return point.matrixTransform(invertedSVGMatrix);
 }
 
 class Board extends Base {
-  constructor(doc, dom, width, height, editable) {
+  constructor(doc, dom, width, height, zoom, editable) {
     super();
     this._width = width;
     this._height = height;
+    this._zoom = zoom;
     this._editable = editable;
     this._nodes = [];
     this._links = [];
@@ -48,7 +58,7 @@ class Board extends Base {
     let bg = doc.createElementNS(XMLNS, 'rect');
     bg.setAttribute('width', '100%');
     bg.setAttribute('height', '100%');
-    bg.setAttribute('style', "fill:rgba(0,0,0,0);stroke-width:1;stroke:rgb(200,200,200)");
+    bg.setAttribute('style', "fill:rgba(0,0,0,0);");
     sel.appendChild(bg);
 
     dom.appendChild(sel);
@@ -94,22 +104,17 @@ class Board extends Base {
     //board drag
     this._sel.addEventListener('mousedown', (evt) => {
       if (event.which == 1 && this._mode == EditMode.Pan) {
-        const {x,y} = getCoordsFromEvent(evt);
-        this._panStart = {
-          x: x - this._transformMatrix[4],
-          y: y - this._transformMatrix[5]
-        };
+        this._origin = getCoordsFromEvent(evt, this._sel);
       }
     });
+
     this._sel.addEventListener('mousemove', (evt) => {
       if (event.which == 1 && this._mode == EditMode.Pan) {
-        const {x, y} = getCoordsFromEvent(evt);
-        let dx = x - this._panStart.x; 
-        let dy = y - this._panStart.y;
+        const point = getCoordsFromEvent(evt, this._sel);
+        const viewBox = this._sel.viewBox.baseVal;
 
-        this._transformMatrix = this._pan(this._transformMatrix, dx, dy);
-        
-        this._refreshTransformMatrix();
+        viewBox.x -= (point.x - this._origin.x);
+        viewBox.y -= (point.y - this._origin.y);
       }
     });
   }
@@ -156,11 +161,11 @@ class Board extends Base {
 
   enterNodeMode(onComplete=()=>{}) {
     this._sel.onclick = (evt) => {
-      const { x, y } = getCoordsFromEvent(evt);
+      const point = getCoordsFromEvent(evt, this._sel);
 
       const config = {
-        x: x - this._transformMatrix[4],
-        y: y - this._transformMatrix[5],
+        x: point.x - this._transformMatrix[4],
+        y: point.y - this._transformMatrix[5],
         title: 'New Title'
       };
 
@@ -203,17 +208,25 @@ class Board extends Base {
 
   enterZoomMode(type) {
     this._sel.onclick = (evt) => {
-      this._scale = this._scale + (type == 'in' ? 1 : -1) * 0.1;
-      let coord = getCoordsFromEvent(evt);
-      this._transformMatrix = this._zoomToScale(this._transformMatrix, this._scale, coord);
-      this._refreshTransformMatrix({
-        x: coord.x / this._scale,
-        y: coord.y / this._scale,
-      });
+      const scale = this._scale + (type === ZoomMode.ZoomIn ? 1 : -1) * 0.25;
+      const point = getCoordsFromEvent(evt, this._sel);
+      this.zoom(this._scale, point);
     };
   }
 
   exitZoomMode() {}
+
+  zoom(scale, point) {
+    this._scale = scale;
+    const bbox = this._sel.getBoundingClientRect();
+    const scalePoint = point ? point : { x: bbox.width / 2 , y: bbox.height / 2 };
+
+    this._transformMatrix = this._zoomToScale(this._transformMatrix, scale, scalePoint);
+    this._refreshTransformMatrix({
+      x: scalePoint.x / scale,
+      y: scalePoint.y / scale,
+    });
+  }
 
   buildLinkablesByNodes(doc, nodes, onComplete) {
     let linkables = nodes.map(node => {
@@ -317,6 +330,12 @@ class Board extends Base {
   oppositeSide(side) {
     return {'l':'r','r':'l','u':'d','d':'u'}[side];
   }
+
+  //#region Getter / Setter
+  get scale() {
+    return this._scale;
+  }
+  //#endregion
 }
 
 export default Board;

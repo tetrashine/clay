@@ -5,8 +5,9 @@ import Node from 'displays/node';
 import Link from 'displays/link';
 import ColorPalette from 'displays/colorpalette';
 
-import {Keyboard} from 'constants/keyboard';
+import {KeyCode} from 'constants/keycode';
 import {EditMode} from 'constants/editmode';
+import {ZoomMode} from 'constants/zoommode';
 //#endregion
 
 //#region SVG Decalations
@@ -31,11 +32,14 @@ class Clay extends Base {
   //#region Constructor
   constructor(id, config, json) {
     super();
+    this._config = this.applyDefault(config);
     this._buttons = {};
     this._palettes = [];
 
     this.initialize();
-    [this._dom, this._menu, this._board] = this.build(id, config, json);
+    [this._dom, this._menu, this._board] = this.build(id, this._config, json);
+
+    this.menuCalibration = this.menuCalibration(this._config);
   }
   //#endregion
 
@@ -68,9 +72,26 @@ class Clay extends Base {
     return [dom, menu, board];
   }
 
+  createZoomLevelElement(doc) {
+    const zoomDiv = this.createDomElement(doc, 'div', '');
+    const zoomInput = this.createDomElement(doc, 'input', '');
+    const zoomPercent = this.createDomElement(doc, 'div', '%');
+    zoomDiv.setAttribute('style', 'position:relative;text-align:right;display:table-cell;width:1px;font-size:10px;padding:0 10px 0 5px;vertical-align:middle;border:solid 1px #333;')
+    zoomPercent.setAttribute('style', 'position: absolute;right:4px;margin-top:3px;')
+    zoomInput.setAttribute('value', '100')
+    zoomInput.setAttribute('style', 'color:#333;width:25px;border:none;')
+    zoomInput.onchange = (evt) => {
+      const scale = parseFloat(evt.target.value);
+      this._board.zoom(scale / 100);
+    }
+    zoomDiv.appendChild(zoomPercent);
+    zoomDiv.appendChild(zoomInput);
+    return zoomDiv;
+  }
+
   createHrElement(doc) {
     let hr = this.createDomElement(doc, 'span', '|', '');
-    hr.setAttribute('style', 'color: #bbb;display:table-cell;width:1px;vertical-align:middle;')
+    hr.setAttribute('style', 'color:#bbb;display:table-cell;width:1px;vertical-align:middle;')
     return hr;
   }
 
@@ -78,6 +99,31 @@ class Clay extends Base {
     let ele = this.createDomElement(doc, 'div', icon, cancel);
     ele.setAttribute('class', 'clay-mb e');
     return ele;
+  }
+
+  createMenuBtnElement({
+    doc, svg, cancelSvg='', tooltip, enable=true,
+    onClick, execFn, cancelFn,
+  }) {
+    const menuElem = this.createMenuElement(doc, svg, cancelSvg);
+    const tooltipElem = this.createDomElement(doc, 'span', tooltip);
+    tooltipElem.setAttribute('class', 'tooltiptext');
+    menuElem.appendChild(tooltipElem);
+    menuElem._svg = menuElem.innerHTML;
+
+    Object.entries({
+      'onclick': onClick,
+      'execFn': execFn,
+      'cancelFn': cancelFn
+    }).forEach(([name, fn]) => {
+      if (fn) {
+        menuElem[name] = fn;
+      }
+    });
+
+    !enable && this.disableMenuBtn(menuElem);
+    
+    return menuElem;
   }
 
   enableMenuBtn(btn) {
@@ -91,8 +137,8 @@ class Clay extends Base {
   }
 
   generate(doc, dom, config, json) {
-    const {width, height, editable} = config;
-    let board = new Board(doc, dom, width, height, editable);
+    const {width, height, zoom, editable} = config;
+    let board = new Board(doc, dom, width, height, zoom, editable);
     let nodes = this.parseNodes(doc, json.nodes, editable);
     let links = this.parseLinks(doc, json.links, nodes, editable);
   
@@ -104,26 +150,44 @@ class Clay extends Base {
 
   lint(config) { return true; }
 
+  applyDefault(config) {
+    return {
+      ...{ 
+        editable: true, zoomable: true, colorize: true, exportable: true 
+      },
+      ...config
+    }
+  }
+
   initialize() {}
 
   makeEditableTextIfAvailable(item) {
     item.makeTextEditable();
   }
 
-  menuCalibration() {
-    ['unselect', 'delete', 'fill', 'fontfill'].forEach(_ => {
-      (this._selected) ? this.enableMenuBtn(this._buttons[_]) : this.disableMenuBtn(this._buttons[_])
-    });
+  menuCalibration(config) {
+    return () => {
+      [
+        ['unselect', 'editable'], 
+        ['delete', 'editable'], 
+        ['fill', 'colorize'], 
+        ['fontfill', 'colorize']
+      ].forEach((_, doable) => {
+        if (config[doable]) {
+          (this._selected) ? this.enableMenuBtn(this._buttons[_]) : this.disableMenuBtn(this._buttons[_])
+        }
+      });
+    }
   }
 
   onKeyDown(e) {
-    if (e.keyCode == Keyboard.Space) {
+    if (e.keyCode === KeyCode.SpaceBar) {
       this._mode = EditMode.Pan;
       this._board.setMode(EditMode.Pan);
       
     } else if (this._selected && !this._selected.isTextEditable()) {
       switch(e.keyCode) {
-        case Keyboard.Delete://Delete
+        case KeyCode.Delete://Delete
             this._palettes.forEach(_ => _.hide());
             this._board.delete(this._selected);
             this._selected = null;
@@ -138,7 +202,7 @@ class Clay extends Base {
 
   onKeyUp(e) {
     switch(e.keyCode) {
-      case Keyboard.Space://Space
+      case KeyCode.SpaceBar://Space
         this._mode = EditMode.None;
         this._board.setMode(EditMode.None);
         break;
@@ -147,8 +211,7 @@ class Clay extends Base {
 
   onMenuBtnClick(mode, svg, cursor='crosshair') {
     return function() {
-      
-      if (this._mode != mode) {
+      if (this._mode !== mode) {
         //if there is a previous selection, cancel it
         if (this._selectedSvg) {
           this._selectedSvg.innerHTML = this._selectedSvg._svg;
@@ -211,217 +274,239 @@ class Clay extends Base {
   }
 
   drawEditMenu(doc, parent, config) {
-    const {width, height, editable} = config;
-    var div = doc.createElement('div');
+    const { 
+      width, height, 
+      editable, zoomable, colorize, exportable
+    } = config;
+    let svg, tooltip;
+    let div = doc.createElement('div');
     div.setAttribute('style', `height:28px;width:${width-1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
   
     const onExecCompleteFn = () => {
       this.resetMenuBtns();
     };
-    //NODE BUTTON
-    let svg = this.createMenuElement(doc, NODE_SVG, CANCEL_SVG);
-    svg.onclick = this.onMenuBtnClick(EditMode.Node, svg).bind(this);
-    svg.execFn = () => {
-      this._board.enterNodeMode(onExecCompleteFn);
-    };
-    svg.cancelFn = () => {
-      this._board.exitNodeMode();
-    };
-    this._buttons.node = svg;
-    let tooltip = this.createDomElement(doc, 'span', 'New node');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
   
     //LINK BUTTON
-    svg = this.createMenuElement(doc, LINK_SVG, CANCEL_SVG);
-    svg.onclick = this.onMenuBtnClick(EditMode.Link, svg).bind(this);
-    svg.execFn = () => {
-      this._board.enterLinkMode(onExecCompleteFn);
-    };
-    svg.cancelFn = () => {
-      this._board.exitLinkMode();
-    };
-    this._buttons.link = svg;
-    tooltip = this.createDomElement(doc, 'span', 'New link');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-  
-    //Breakline
-    svg = this.createHrElement(doc);
-    div.appendChild(svg);
-  
-    //UNDO
-    svg = this.createMenuElement(doc, UNDO_SVG);
-    this._buttons.undo = svg;
-    svg.onclick = () => {};
-    tooltip = this.createDomElement(doc, 'span', 'Undo');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-    
-    //REDO
-    svg = this.createMenuElement(doc, REDO_SVG);
-    this._buttons.undo = svg;
-    svg.onclick = () => {};
-    tooltip = this.createDomElement(doc, 'span', 'Redo');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-  
-    //Breakline
-    svg = this.createHrElement(doc);
-    div.appendChild(svg);
-  
-    //UNSELECT BUTTON
-    svg = this.createMenuElement(doc, UNSELECT_SVG, CANCEL_SVG);
-    this._buttons.unselect = svg; 
-    svg.onclick = () => {
-        this._selected.unselect();
-        this._selected = null;
-        this.menuCalibration();
-    };
-    tooltip = this.createDomElement(doc, 'span', 'Deselect');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-    this.disableMenuBtn(svg);
-  
-    //DELETE
-    svg = this.createMenuElement(doc, DELETE_SVG, CANCEL_SVG);
-    this._buttons.delete = svg;
-    svg.onclick = () => {
-      //if (svg._enable) {
-        this._board.delete(this._selected);
-        this._selected = null;
-        this.menuCalibration();
-      //}
-    };
-    tooltip = this.createDomElement(doc, 'span', 'Delete');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-    this.disableMenuBtn(svg);
+    if (editable) {
+      //NODE BUTTON
+      const nodeBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: NODE_SVG, 
+        cancelSvg: CANCEL_SVG, 
+        tooltip: 'New node', 
+        execFn: () => {
+          this._board.enterNodeMode(onExecCompleteFn);
+        },
+        cancelFn: () => {
+          this._board.exitNodeMode();
+        }
+      });
+      nodeBtn.onclick = this.onMenuBtnClick(EditMode.Node, nodeBtn).bind(this); 
+      this._buttons.node = nodeBtn;
+      div.appendChild(nodeBtn);
 
-    //Breakline
-    svg = this.createHrElement(doc);
-    div.appendChild(svg);
+      const linkBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: LINK_SVG, 
+        cancelSvg: CANCEL_SVG, 
+        tooltip: 'New link', 
+        execFn: () => {
+          this._board.enterLinkMode(onExecCompleteFn);
+        },
+        cancelFn: () => {
+          this._board.exitLinkMode();
+        }
+      });
+      linkBtn.onclick = this.onMenuBtnClick(EditMode.Link, linkBtn).bind(this); 
+      this._buttons.links = linkBtn;
+      div.appendChild(linkBtn);
+    
+      //Breakline
+      svg = this.createHrElement(doc);
+      div.appendChild(svg);
+    
+      //UNDO
+      const undoBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: UNDO_SVG,
+        tooltip: 'Undo', 
+        onClick: () => {},
+      });
+      this._buttons.undo = undoBtn;
+      div.appendChild(undoBtn);
+      
+      //REDO
+      const redoBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: REDO_SVG,
+        tooltip: 'Redo', 
+        onClick: () => {},
+      });
+      this._buttons.redo = redoBtn;
+      div.appendChild(redoBtn);
+    
+      //Breakline
+      svg = this.createHrElement(doc);
+      div.appendChild(svg);
+    
+      //UNSELECT BUTTON
+      const unselectBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: UNSELECT_SVG,
+        cancelSvg: CANCEL_SVG,
+        tooltip: 'Unselect', 
+        enable: false,
+        onClick: () => {
+          this._selected.unselect();
+          this._selected = null;
+          this.menuCalibration();
+        },
+      });
+      this._buttons.unselect = unselectBtn; 
+      div.appendChild(unselectBtn);
+    
+      //DELETE
+      const deleteBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: DELETE_SVG,
+        cancelSvg: CANCEL_SVG,
+        tooltip: 'Delete', 
+        enable: false,
+        onClick: () => {
+          //if (svg._enable) {
+            this._board.delete(this._selected);
+            this._selected = null;
+            this.menuCalibration();
+          //}
+        },
+      });
+      this._buttons.delete = deleteBtn; 
+      div.appendChild(deleteBtn);
+  
+      //Breakline
+      div.appendChild(this.createHrElement(doc));
+    }
 
     //ZOOM IN
-    svg = this.createMenuElement(doc, ZOOM_IN_SVG, CANCEL_SVG);
-    this._buttons.zoomIn = svg;
-    svg.onclick = this.onMenuBtnClick(EditMode.ZoomIn, svg, 'zoom-in').bind(this);
-    svg.execFn = () => {
-      this._board.enterZoomMode("in");
-    };
-    svg.cancelFn = () => {
-      this._board.exitZoomMode();
-    };
-    tooltip = this.createDomElement(doc, 'span', 'Zoom In');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-
-    //ZOOM OUT
-    svg = this.createMenuElement(doc, ZOOM_OUT_SVG, CANCEL_SVG);
-    this._buttons.zoomOut = svg;
-    svg.onclick = this.onMenuBtnClick(EditMode.ZoomOut, svg, 'zoom-out').bind(this);
-    svg.execFn = () => {
-      this._board.enterZoomMode("out");
-    };
-    svg.cancelFn = () => {
-      this._board.exitZoomMode();
-    };
-    tooltip = this.createDomElement(doc, 'span', 'Zoom Out');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-
-    //Breakline
-    svg = this.createHrElement(doc);
-    div.appendChild(svg);
-
-    //FILL BUTTON
-    svg = this.createMenuElement(doc, FILL_SVG);
-    svg.onclick = () => {};
-    this._buttons.fill = svg;
-    tooltip = this.createDomElement(doc, 'span', 'Fill Color');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    this.disableMenuBtn(svg);
-    div.appendChild(svg);
-
-    //color palette
-    let cp1 = new ColorPalette(doc);
-    cp1.appendToDom(svg);
-    this._palettes.push(cp1);
-
-    svg.onclick = ((svg, cp) => () => {
-      if (svg._enable) {
-        this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
-        if (cp.toggle()) {
-          cp.once('palette-select', (color) => {
-            this._selected.setFillColor(color);
-          });
+    if (zoomable) {
+      const zoomInBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: ZOOM_IN_SVG,
+        cancelSvg: CANCEL_SVG,
+        tooltip: 'Zoom In', 
+        execFn: () => {
+          this._board.enterZoomMode(ZoomMode.ZoomIn);
+        },
+        cancelFn: () => {
+          this._board.exitZoomMode();
         }
-      }
-    })(svg, cp1);
-
-    //FONTCOLOR BUTTON
-    svg = this.createMenuElement(doc, FONTCOLOR_SVG);
-    svg.onclick = () => {};
-    this._buttons.fontfill = svg;
-    tooltip = this.createDomElement(doc, 'span', 'Text Color');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg._tooltip = tooltip;
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    this.disableMenuBtn(svg);
-
-    //color palette
-    let cp2 = new ColorPalette(doc);
-    cp2.appendToDom(svg);
-    this._palettes.push(cp2);
-
-    svg.onclick = ((svg, cp) => () => {
-      if (svg._enable) {
-        this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
-        if (cp.toggle()) {
-          cp.once('palette-select', (color) => {
-            this._selected.setFontColor(color);
-          });
-        }
-      }
-    })(svg, cp2);
-
-    div.appendChild(svg);    
+      });
+      zoomInBtn.onclick = this.onMenuBtnClick(EditMode.ZoomIn, zoomInBtn).bind(this); 
+      this._buttons.zoomIn = zoomInBtn; 
+      div.appendChild(zoomInBtn);
   
-    //Breakline
-    svg = this.createHrElement(doc);
-    div.appendChild(svg);
+      //ZOOM OUT
+      const zoomOutBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: ZOOM_OUT_SVG,
+        cancelSvg: CANCEL_SVG,
+        tooltip: 'Zoom In', 
+        execFn: () => {
+          this._board.enterZoomMode(ZoomMode.ZoomOut);
+        },
+        cancelFn: () => {
+          this._board.exitZoomMode();
+        }
+      });
+      zoomOutBtn.onclick = this.onMenuBtnClick(EditMode.ZoomOut, zoomOutBtn).bind(this); 
+      this._buttons.zoomOut = zoomOutBtn; 
+      div.appendChild(zoomOutBtn);
+
+      const zoomLvl = this.createZoomLevelElement(doc, this._board);
+      div.appendChild(zoomLvl);
+
+  
+      //Breakline
+      div.appendChild(this.createHrElement(doc)); 
+    }
+
+    if (colorize) {
+      //FILL BUTTON
+      const fillBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: FILL_SVG,
+        tooltip: 'Fill Color', 
+        onClick: () => {},
+      });
+      this._buttons.fill = fillBtn; 
+      div.appendChild(fillBtn);
+      this.disableMenuBtn(fillBtn);
+
+      //color palette
+      let cp1 = new ColorPalette(doc);
+      cp1.appendToDom(fillBtn);
+      this._palettes.push(cp1);
+
+      fillBtn.onclick = ((svg, cp) => () => {
+        if (svg._enable) {
+          this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
+          if (cp.toggle()) {
+            cp.once('palette-select', (color) => {
+              this._selected.setFillColor(color);
+            });
+          }
+        }
+      })(fillBtn, cp1);
+
+      //FONTCOLOR BUTTON
+      const textColorBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: FONTCOLOR_SVG,
+        tooltip: 'Text Color', 
+        enable: false,
+        onClick: () => {},
+      });
+
+      this._buttons.fontfill = textColorBtn;
+
+      //color palette
+      let cp2 = new ColorPalette(doc);
+      cp2.appendToDom(textColorBtn);
+      this._palettes.push(cp2);
+
+      textColorBtn.onclick = ((svg, cp) => () => {
+        if (svg._enable) {
+          this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
+          if (cp.toggle()) {
+            cp.once('palette-select', (color) => {
+              this._selected.setFontColor(color);
+            });
+          }
+        }
+      })(textColorBtn, cp2);
+
+      div.appendChild(textColorBtn);    
+    
+      //Breakline
+      div.appendChild(this.createHrElement(doc));
+    }
   
     //EXPORT BUTTON
-    svg = this.createMenuElement(doc, EXPORT_SVG, CANCEL_SVG);
-    svg.onclick = () => {
-      this.trigger('export', this._board.exportAsJson());
-    };
-    this._buttons.export = svg;
-    tooltip = this.createDomElement(doc, 'span', 'Export');
-    tooltip.setAttribute('class', 'tooltiptext');
-    svg.appendChild(tooltip);
-    svg._svg = svg.innerHTML;
-    div.appendChild(svg);
-  
+    if (exportable) {
+      const exportBtn = this.createMenuBtnElement({
+        doc: doc, 
+        svg: EXPORT_SVG,
+        cancelSvg: CANCEL_SVG,
+        tooltip: 'Export', 
+        onClick: () => {
+          this.trigger('export', this._board.exportAsJson());
+        },
+      });
+
+      this._buttons.export = exportBtn;
+      div.appendChild(exportBtn);
+    }
+        
     svg = this.createMenuElement(doc, '', '');
     svg.setAttribute('class', '');
     div.appendChild(svg);

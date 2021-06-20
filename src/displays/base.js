@@ -12,7 +12,7 @@ class Base extends Evented {
     elem.appendChild(this.getElem());
   }
 
-  createDomElement(doc, type, text, cancel) {
+  createDomElement(doc, type, text, cancel='') {
     let func = type == 'svg' ? this.createSvgElement : this.createNonSvgElement;
     let elem = func.call(this, doc, type);
     elem.innerHTML = text;

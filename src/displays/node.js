@@ -83,9 +83,17 @@ class Node extends Draggable {
   }
 
   setXY(x, y) {
-    this._config.x = x;
-    this._config.y = y;
-    this._sel.setAttributeNS(null, 'transform', `translate(${x},${y})`);
+    const svg = this._parent;
+    let point = svg.createSVGPoint();
+    const invertedSVGMatrix = svg.getScreenCTM().inverse();
+    point.x = x;
+    point.y = y;
+    point = point.matrixTransform(invertedSVGMatrix);
+
+    this._config.x = point.x;
+    this._config.y = point.y;
+
+    this._sel.setAttributeNS(null, 'transform', `translate(${point.x},${point.y})`);
   }
 
   getFaceCoords() {
