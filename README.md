@@ -32,8 +32,8 @@ extends \<Evented\>
 | Name       | Type          | Description           |
 | ---------- | ------------- | --------------------- |
 | type       | IoType        | Type of the node.     |
-| inputs     | Array<IoType> | Array of input types. |
-| outputs    | Array<IoType> | Array of output types |
+| inputs     | Array\<IoType\> | Array of input types. |
+| outputs    | Array\<IoType\> | Array of output types |
   
 #### IoType
 Must be a string of value "string", "boolean", "integer", "function".
