@@ -14,7 +14,7 @@ extends \<Evented\>
 #### Methods
 | Methods       | Returns       | Description   |
 | ------------- | ------------- | ------------- |
-| addNode(\<String\> title, \<Function\|String\|Integer\> node, \<Boolean\> selection)      | String          |  Goes into adding of node state. Returns id of node to be used for other functions. Title to display on screen, node representation during execution, selection to determine the location of node uses user selection. |
+| addNode(\<String\> title, \<NodeConfig\> node, \<Boolean\> selection)      | String          |  Goes into adding of node state. Returns id of node to be used for other functions. Title to display on screen, node representation during execution, selection to determine the location of node uses user selection. |
 | export()      | State         |  Returns the current state of the board to be reimported back left off state.  |
 | load(\<Configuration\> config, \<State\> state)      | Clay          | Generates the board based on the configuration and state |
 | generate(\<String\> id, \<Configuration\> config, \<State\> state)      | Clay          | Generates the board on element (with the provided id) based on the configuration and state |
@@ -27,6 +27,16 @@ extends \<Evented\>
 | Event       | Data       | Description   |
 | ----------- | ---------- | ------------- |
 | export      | State      | Fired when the export button is clicked. |
+
+### NodeConfig
+| Name       | Type          | Description           |
+| ---------- | ------------- | --------------------- |
+| type       | IoType        | Type of the node.     |
+| inputs     | Array<IoType> | Array of input types. |
+| outputs    | Array<IoType> | Array of output types |
+  
+#### IoType
+Must be a string of value "string", "boolean", "integer", "function".
 
 ### Configuration
 | Name       | Type       | Description   |
