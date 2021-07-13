@@ -28,12 +28,5 @@ module.exports = [{
     filename: 'clay.js',
     library: 'clay',
   },
-  externals: {
-    react: {
-      commonjs: 'react',
-      commonjs2: 'react'
-    }
-  },
   module: modulesByRules,
-  ...common
 }];
