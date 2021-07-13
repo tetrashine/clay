@@ -3,9 +3,15 @@ import Link from 'displays/link';
 import Base from 'displays/base';
 import Mouse from 'displays/mouse';
 
-import {KeyCode} from 'constants/keycode';
 import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
+
+import { default as config } from 'constants/config';
+const {
+  LINK_COLOR, LINK_SELECTED_COLOR,
+  NODE_CONNECTOR_COLOR, NODE_CONNECTOR_SELECTED_COLOR, NODE_CONNECTOR_BORDER_COLOR, NODE_CONNECTOR_HOVER_COLOR
+} = config;
+
 const XMLNS = "http://www.w3.org/2000/svg";
 
 const getCoordsFromEvent = (ev, svg) => {
@@ -32,6 +38,7 @@ class Board extends Base {
     this._editable = editable;
     this._nodes = [];
     this._links = [];
+    this._selected = [];
     this._showGrid = false;
     this._type = 'svg';
     this._doc = doc;
@@ -51,8 +58,17 @@ class Board extends Base {
     sel.innerText = "Your browser does not support inline svg";
 
     let defs = doc.createElementNS(XMLNS, 'defs');
-    defs.innerHTML = `<marker id='head' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="black"/></marker><marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="blue"/></marker>`;
+    defs.innerHTML = `<marker id='head' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker><marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker>`;
+    defs.innerHTML = `<marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_SELECTED_COLOR}"/></marker><marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker>`;
     sel.appendChild(defs);
+
+    //draw highlights
+    this._highlight = doc.createElementNS(XMLNS, 'rect');
+    this._highlight.setAttribute('id', 'highlight');
+    this._highlight.setAttribute('width', 0);
+    this._highlight.setAttribute('height', 0);
+
+    sel.appendChild(this._highlight);
 
     //background color
     let bg = doc.createElementNS(XMLNS, 'rect');
@@ -90,33 +106,95 @@ class Board extends Base {
   }
   //#endregion
 
-  exportAsJson() {
+  exportState() {
     return {
       "editable": this._editable,
       "nodes": this._nodes.map(node => node.exportAsJson()),
-      "links": []
+      "links": this._links.map(link => link.exportAsJson())
     };
+  }
+
+  clearHighlight() {
+    //clear highlight
+    this._highlight.setAttribute('width', 0);
+    this._highlight.setAttribute('height', 0);
   }
 
   initialize(editable) {
     editable && this.edit();
+    var highlighting = false;
+
+    
 
     //board drag
-    this._sel.addEventListener('mousedown', (evt) => {
-      if (event.which == 1 && this._mode == EditMode.Pan) {
-        this._origin = getCoordsFromEvent(evt, this._sel);
+    this.elem.addEventListener('mousedown', (evt) => {
+      if (event.which === 1) {//left click
+        this._origin = getCoordsFromEvent(evt, this.elem);
+        this.elem.appendChild(this._highlight);
       }
     });
 
-    this._sel.addEventListener('mousemove', (evt) => {
-      if (event.which == 1 && this._mode == EditMode.Pan) {
-        const point = getCoordsFromEvent(evt, this._sel);
-        const viewBox = this._sel.viewBox.baseVal;
+    this.elem.addEventListener('mousemove', (evt) => {
+      
+      if (event.which == 1) {
+        const point = getCoordsFromEvent(evt, this.elem);
 
-        viewBox.x -= (point.x - this._origin.x);
-        viewBox.y -= (point.y - this._origin.y);
+        if (this._mode == EditMode.Pan) {
+          const viewBox = this.elem.viewBox.baseVal;
+
+          viewBox.x -= (point.x - this._origin.x);
+          viewBox.y -= (point.y - this._origin.y);
+        } else if (this._origin && this._nodes.every(_ => !_.isDragging())) {
+          highlighting = true;
+          
+          let left = this._origin.x < point.x ? this._origin.x : point.x;
+          let right = this._origin.x > point.x ? this._origin.x : point.x;
+          let top = this._origin.y < point.y ? this._origin.y : point.y;
+          let bottom = this._origin.y > point.y ? this._origin.y : point.y;
+          
+          this._highlight.setAttribute('x', left);
+          this._highlight.setAttribute('y', top);
+
+          this._highlight.setAttribute('width', Math.abs(right - left));
+          this._highlight.setAttribute('height', Math.abs(bottom - top));
+        } else {
+          this.clearHighlight();
+        }
       }
     });
+
+    this.elem.addEventListener('mouseup', (evt) => {
+      if (highlighting) {
+        //use highlight to select items
+        const svgRect = this.elem.createSVGRect();
+        svgRect.x = this._highlight.attributes.x.value;
+        svgRect.y = this._highlight.attributes.y.value;
+        svgRect.width = this._highlight.attributes.width.value;
+        svgRect.height = this._highlight.attributes.height.value;
+
+        this.unselectItems();
+
+        this.elem.getIntersectionList(svgRect, null).forEach(_ => {
+          const node = _.node || _.parentNode.node;
+          if (node) {
+            node.select();
+            this._selected.push(node);
+
+            this.trigger('onselect', this._selected)
+          }
+        })
+
+        this.clearHighlight();
+      }
+      
+      highlighting = false;
+
+    });
+  }
+
+  unselectItems() {
+    this._selected.forEach(_ => _.unselect());
+    this._selected = [];
   }
 
   edit() {
@@ -130,10 +208,12 @@ class Board extends Base {
   }
 
   addLink(link) { 
-    this.addToBoardItems(this._links, link);
+    this._links.push(link);
+    this.appendChild(link);
   }
 
   addToBoardItems(arr, item) {
+    item.setIndex(arr.length);
     this.appendChild(item);
     arr.push(item);
     this.subscribeToSelection(item);
@@ -144,7 +224,6 @@ class Board extends Base {
   }
 
   setNodes(nodes) { 
-    this._nodes = nodes;
     nodes.forEach(node => this.addNode(node));
   }
 
@@ -155,66 +234,119 @@ class Board extends Base {
   
   subscribeToSelection(item) { 
     item.on('clickonly', (e) => {
-      this.trigger('onselect', item)
+      //this.unselectItems();
+      if (item.selected) {
+        item.unselect();
+        this._selected.splice(this._selected.indexOf(item), 1);
+
+        this.trigger('ondeselect', this._selected)
+      } else {
+        item.select();
+        this._selected.push(item);
+
+        this.trigger('onselect', this._selected)
+      }
     });
   }
 
-  enterNodeMode(onComplete=()=>{}) {
+  enterSelectionMode(onComplete=()=>{}){
     this._sel.onclick = (evt) => {
       const point = getCoordsFromEvent(evt, this._sel);
 
-      const config = {
-        x: point.x - this._transformMatrix[4],
-        y: point.y - this._transformMatrix[5],
-        title: 'New Title'
-      };
-
-      let node = new Node(this._doc, config);
-  
-      this.addNode(node);
-  
       //exit
-      this.exitNodeMode();
-      onComplete();
+      this.exitSelectionMode();
+      onComplete(point);
     };
   }
 
-  exitNodeMode(onComplete=()=>{}) {
+  enterNodeMode(onComplete=()=>{}) {
+    this.enterSelectionMode((point) => {
+      const config = {
+        x: point.x - this._transformMatrix[4],
+        y: point.y - this._transformMatrix[5],
+        title: 'New Title',
+        editable: this._editable,
+      };
+
+      let node = new Node(this._doc, null, config);
+      this.addNode(node);
+  
+      onComplete();
+    });
+  }
+
+  exitSelectionMode(onComplete=()=>{}) {
     //stop onclick events
     this._sel.onclick = undefined;
   }
 
   enterLinkMode(onComplete=()=>{}) {
-    this._linkables = this.buildLinkablesByNodes(this._doc, this._nodes, onComplete);
-    this._linkables.forEach(linkable => this._parent.appendChild(linkable));
+    const scope = this;
+    const onLinkConstructed = (node, ioIndex) => {
+      if (this._link) {
+        scope._mode = EditMode.None;
+        
+        //complete linking target
+        this._link.setTarget(node, ioIndex);
+        this._link.setDotted(false);
+        this._link.selectable();
+
+        //clean up
+        onComplete();
+
+        this._nodes.forEach(node => {
+          node.startListening();
+          node.removeLinkables();
+          node.resetColor();
+        });
+
+        this._link = undefined;
+
+      } else {
+        const link = this._link = new Link(this._doc, node, ioIndex, new Mouse(this.elem.getBoundingClientRect()), -1, {
+          dotted: true,
+          editable: this._editable,
+        });
+
+        this.addLink(link);
+        node.addLink(link);
+
+        this._nodes.forEach(node => {
+          node.removeLinkables();
+          node.drawInputLinkables(onLinkConstructed);
+          node.setInputColor();
+        });
+      }
+    };
+
+    this._nodes.forEach(node => {
+      node.stopListening();
+      node.drawOutputLinkables(onLinkConstructed);
+    });
   }
 
   exitLinkMode() {
-    //hide all linkables
-    this._nodes.forEach(node => node._linkables = []);
-    this._linkables.forEach(linkable => linkable.remove());
-  
-    //remove if in half linking mode
-    if (this._linked) {
-      let link = this._linked._link;
-  
-      this._links.splice(this._links.indexOf(link), 1);
-  
-      link.remove();
-      this._linked._link = undefined;
-      this._linked = undefined;
-    }
+    this._nodes.forEach(node => {
+      node.removeLinkables();
+      node.resetColor();
+    });
+    
+    this._links.splice(this._links.indexOf(this._link), 1);
+    this._link.remove();
+    this._link = undefined;
   }
 
   enterZoomMode(type) {
     this._sel.onclick = (evt) => {
       const scale = this._scale + (type === ZoomMode.ZoomIn ? 1 : -1) * 0.25;
       const point = getCoordsFromEvent(evt, this._sel);
-      this.zoom(this._scale, point);
+      this.zoom(scale, point);
     };
   }
 
-  exitZoomMode() {}
+  exitZoomMode() {
+    this._sel.onclick = undefined;
+  }
 
   zoom(scale, point) {
     this._scale = scale;
@@ -256,18 +388,18 @@ class Board extends Base {
     let div = this.createDomElement(doc, 'div', '');
     div.selected = false;
     div.setAttribute('side', coords.side);
-    div.setAttribute('style', `position: absolute;left:${coords.x-WIDTH/2}px;top:${coords.y-WIDTH/2}px;width:${WIDTH}px;height:${WIDTH}px;background-color: white;border: 1px solid black;`);
+    div.setAttribute('style', `position:absolute;left:${coords.x-WIDTH/2}px;top:${coords.y-WIDTH/2}px;width:${WIDTH}px;height:${WIDTH}px;background-color: ${NODE_CONNECTOR_COLOR};border: 1px solid ${NODE_CONNECTOR_BORDER_COLOR};border-radius:10px;`);
     div._node = node;
   
     div.onmouseover = () => {
       if (!div.selected) {
-        div.style.backgroundColor = 'red';
+        div.style.backgroundColor = NODE_CONNECTOR_HOVER_COLOR;
       }
     };
   
     div.onmouseout = () => {
       if (!div.selected) {
-        div.style.backgroundColor = 'white';
+        div.style.backgroundColor = NODE_CONNECTOR_COLOR;
       }
     };
   
@@ -278,13 +410,13 @@ class Board extends Base {
         this._mode = EditMode.None;
   
         //complete linking target
-        this._linked._link.setTarget(node, div.getAttribute('side'));
+        this._linked._link.setTarget(node, div.getAttribute('index'));
         this._linked._link.setDotted(false);
         this._linked._link.selectable();
   
         this._linked._link = undefined;
         this._linked.selected = false;
-        this._linked.style.backgroundColor = 'white';
+        this._linked.style.backgroundColor = NODE_CONNECTOR_COLOR;
         this._linked = undefined;
   
         //exit
@@ -295,7 +427,7 @@ class Board extends Base {
         //linking src
         this._linked = div;
         div.selected = true;
-        div.style.backgroundColor = 'green';
+        div.style.backgroundColor = NODE_CONNECTOR_SELECTED_COLOR;
   
         //hide linkables from same nodes
         node._linkables.forEach(linkable => {
@@ -303,9 +435,10 @@ class Board extends Base {
         });
   
         //draw link from clicked to mouse
-        let side = div.getAttribute('side');
-        let link = new Link(this._doc, node, side, new Mouse(), this.oppositeSide(side), {
-          dotted: true
+        let index = div.getAttribute('index');
+        let link = new Link(this._doc, node, index, new Mouse(this.elem.offsetLeft, this.elem.offsetTop), -1, {
+          dotted: true,
+          editable: this._editable,
         });
         div._link = link;
   

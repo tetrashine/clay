@@ -4,16 +4,16 @@ import Evented from 'displays/evented';
 class Base extends Evented {
 
   appendChild(node) {
-    this._sel.appendChild(node.getElem());
-    node._parent = this._sel;
+    this.elem.appendChild(node.elem);
+    node._parent = this.elem;
   }
 
   appendToDom(elem) {
-    elem.appendChild(this.getElem());
+    elem.appendChild(this.elem);
   }
 
   createDomElement(doc, type, text, cancel='') {
-    let func = type == 'svg' ? this.createSvgElement : this.createNonSvgElement;
+    let func = (['svg', 'g', 'text', 'rect', 'foreignobject'].indexOf(type.toLowerCase()) >= 0) ? this.createSvgElement : this.createNonSvgElement;
     let elem = func.call(this, doc, type);
     elem.innerHTML = text;
     elem._svg = text;
@@ -29,12 +29,17 @@ class Base extends Evented {
     return doc.createElementNS("http://www.w3.org/2000/svg", type);
   }
 
-  getElem() {
+  remove() {
+    this.elem.remove();
+  }
+
+  get elem() {
     return this._sel;
   }
 
-  remove() {
-    this._sel.remove();
+  set elem(elem) {
+    this._sel = elem;
+    elem.node = this;
   }
 }
 

@@ -93,7 +93,14 @@ class Draggable extends Base {
     window.removeEventListener('touchend', this.endDragFn);
   }
   
-  setXY(x, y) {}
+  setXY(x, y) {
+    this._x = x;
+    this._y = y;
+  }
+
+  isDragging() {
+    return this._dragged;
+  }
 }
 
 export default SelectableHOC(Draggable);

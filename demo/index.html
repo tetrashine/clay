@@ -1,10 +1,13 @@
-<!DOCTYPE html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <!DOCTYPE html>
 <html>
   <head>
     <title>Demo 1</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
   </head>
   <body>
+    <button onclick="add5()">5</button>
+    <button onclick="add6()">6</button>
+    <button onclick="add()">Add</button>
     <div id="board"></div>
   </body>
   <script src="../dist/clay.js"></script>
@@ -22,20 +25,104 @@
       "title": "Demo Board",
       "nodes": [{
         "title": "Hello World 123 123",
-        "description": "",
-        "x": 50,
-        "y": 50
+        "description": "", 
+        "x":50,
+        "y":50,
+        "node": {
+          "type": "string",
+        },
+        "attrs": []
       }, {
         "title": "Goal",
-        "description": "",
-        "x": 150,
-        "y": 150
+        "description":"",
+        "x":150,
+        "y":150,
+        "node": {
+          "type": "string",
+        },
+        "attrs": [],
+      },{
+        "title":5,
+        "description":"",
+        "x":88,
+        "y":255,
+        "node": {
+          "type": "integer",
+        },
+        "attrs": [],
+      },{
+        "title":6,
+        "description":"",
+        "x":89,
+        "y":317,
+        "node": {
+          "type": "integer",
+        },
+        "attrs": [],
+      },{
+        "title":"Add",
+        "description":"",
+        "x":236,
+        "y":279,
+        "node": {
+          "type": "function",
+          "inputs": ["integer", "integer"],
+          "outputs": ["integer"],
+        },
+        "attrs": [{
+          "name": "hi",
+          "value": "123",
+        }],
       }],
-      "links": []
+      "links":[{
+        "dotted": false,
+        "editable": true,
+        "input_index": " 1",
+        "mode": "elbow",
+        "output_index": "1",
+        "src": 2,
+        "target": 4,
+        "type": "regular",
+      }, {
+        "dotted": false,
+        "editable": true,
+        "input_index": "2",
+        "mode": "elbow",
+        "output_index": "1",
+        "src": 3,
+        "target": 4,
+        "type": "regular"
+      }]
     });
 
     clay.subscribe('export', function(json) {
       console.log(json);
     });
+
+    function addValue(val) {
+      return function () {
+        clay.addNode(val, val);
+      };
+    }
+
+    function add() {
+      clay.addNode('Add', {
+        type: 'function',
+        inputs: ['integer', 'integer'],
+        outputs: ['integer'],
+      });
+    }
+
+    function add5() {
+      clay.addNode(5, {
+        type: 'integer',
+      });
+    }
+
+    function add6() {
+      clay.addNode(6, {
+        type: 'integer',
+      });
+    }
   </script>
 </html>

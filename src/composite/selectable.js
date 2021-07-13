@@ -2,8 +2,8 @@ const SelectableHOC = (BaseClass) => {
 
   return class extends BaseClass {
 
-    constructor() {
-      super();
+    constructor(...params) {
+      super(...params);
       this.clickFn = (evt) => {
         this.trigger('click', this);
       };
@@ -25,6 +25,10 @@ const SelectableHOC = (BaseClass) => {
 
     select() {
       this._selected = true;
+    }
+
+    get selected() {
+      return this._selected;
     }
   };
 }
