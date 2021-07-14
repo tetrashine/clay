@@ -29,4 +29,5 @@ module.exports = [{
     library: 'clay',
   },
   module: modulesByRules,
+  ...common
 }];

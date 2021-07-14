@@ -70,12 +70,24 @@ class Node extends Draggable {
     }
   }
 
-  addLink(link) {
+  addLink(link, type) {
+    if (type === 'input') {
+      this._inputLinks.push(link);
+    } else if (type === 'input') {
+      this._outputLinks.push(link);
+    }
+
     this._links.push(link);
   }
 
   delLink(link) {
-    this._links.splice(this._inputLinks.indexOf(link), 1);
+    const inputIndex = this._inputLinks.indexOf(link);
+    const outputIndex = this._outputLinks.indexOf(link);
+
+    if (inputIndex >= 0) this._inputLinks.splice(inputIndex, 1);
+    if (outputIndex >= 0) this.outputIndex.splice(outputIndex, 1);
+
+    this._links.splice(this._links.indexOf(link), 1);
   }
 
   setFillColor(color=NODE_COLOR) {

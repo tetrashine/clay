@@ -31,15 +31,15 @@ class Draggable extends Base {
   }
 
   startListening() {
-    this._sel.addEventListener('mousedown', this.startDragFn);
-    this._sel.addEventListener('touchstart', this.startDragFn, { passive: false });
+    this.elem.addEventListener('mousedown', this.startDragFn);
+    this.elem.addEventListener('touchstart', this.startDragFn, { passive: false });
   }
   
   stopListening() {
     //remove click event listener
     //remove drag event listener
-    this._sel.removeEventListener('mousedown', this.startDragFn);
-    this._sel.removeEventListener('touchstart', this.startDragFn, { passive: false });
+    this.elem.removeEventListener('mousedown', this.startDragFn);
+    this.elem.removeEventListener('touchstart', this.startDragFn, { passive: false });
   }
 
   destroy() {

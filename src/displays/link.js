@@ -19,9 +19,7 @@ class Link extends SelectableHOC(Base) {
 	}
 
 	_dragFn(x, y) {
-		let coord1 = this._src.getOutputCoord(this._output_index);
-		let coord2 = this._target.getInputCoord(this._input_index);
-		this._sel.setAttribute('d', this.formPath(this._mode, coord1, coord2));
+		this.redrawPath();
 	};
 
 	getSrc() { return this._src; }
@@ -59,8 +57,8 @@ class Link extends SelectableHOC(Base) {
 		this._target = target;
 		this._input_index = parseInt(input_index) - 1;
 
-		src.addLink(this);
-		target.addLink(this);
+		src.addLink(this, 'output');
+		target.addLink(this, 'input');
 
 		const xmlns = "http://www.w3.org/2000/svg";
 		const sel = this.elem = this.createSvgElement(doc, 'g');
