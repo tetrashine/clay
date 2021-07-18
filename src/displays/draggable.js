@@ -56,7 +56,7 @@ class Draggable extends Base {
   
     //setup last click
     var clicked = getCoordsFromEvent(evt);
-    var rect = this._sel.getBoundingClientRect();
+    var rect = this.elem.getBoundingClientRect();
     this.offset = {
       x: clicked.x - rect.x,
       y: clicked.y - rect.y
@@ -73,14 +73,19 @@ class Draggable extends Base {
 
   drag(evt) {
     this._dragged = true;
-    var offset = this.offset;
-    var coord = getCoordsFromEvent(evt);
+    const offset = this.offset;
+    const coord = getCoordsFromEvent(evt);
   
-    var x = coord.x - offset.x;
-    var y = coord.y - offset.y;
+    const x = coord.x - offset.x;
+    const y = coord.y - offset.y;
+    const dx = x - this.x;
+    const dy = y - this.y;
     this.setXY(x, y);
   
-    this.trigger('drag', x, y);
+    this.trigger('drag', {
+      dx: dx,
+      dy: dy,
+    });
   }
 
   endDrag(evt) {
@@ -100,6 +105,22 @@ class Draggable extends Base {
 
   isDragging() {
     return this._dragged;
+  }
+
+  get x() {
+    return this._x;
+  }
+
+  set x(v) {
+    this._x = v;
+  }
+
+  get y() {
+    return this._y;
+  }
+
+  set y(v) {
+    this._y = v;
   }
 }
 

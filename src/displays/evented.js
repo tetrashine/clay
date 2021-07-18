@@ -14,7 +14,7 @@ class Evented {
     this._defaulted(name);
   
     var arr = this._events[name];
-    for (var i = arr.length - 1; i >= 0; i++) {
+    for (var i = arr.length - 1; i >= 0; i--) {
       if (arr[i] === callback) {
         arr.splice(i, 1);
         break;

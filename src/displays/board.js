@@ -59,8 +59,8 @@ class Board extends Base {
 
     let defs = doc.createElementNS(XMLNS, 'defs');
     defs.innerHTML = `
-      <marker id='head' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker><marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker>
-      <marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_SELECTED_COLOR}"/></marker><marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker>
+      <marker id='head' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_COLOR}"/></marker>
+      <marker id='head-selected' orient="auto" markerWidth='2' markerHeight='4' refX='0.1' refY='2'><path d='M0,0 V4 L2,2 Z' fill="${LINK_SELECTED_COLOR}"/></marker>
     `;
     sel.appendChild(defs);
 
@@ -125,13 +125,12 @@ class Board extends Base {
   initialize(editable) {
     editable && this.edit();
     var highlighting = false;
-
-    
+    var origin = undefined;
 
     //board drag
     this.elem.addEventListener('mousedown', (evt) => {
       if (event.which === 1) {//left click
-        this._origin = getCoordsFromEvent(evt, this.elem);
+        origin = getCoordsFromEvent(evt, this.elem);
         this.elem.appendChild(this._highlight);
       }
     });
@@ -144,15 +143,15 @@ class Board extends Base {
         if (this._mode == EditMode.Pan) {
           const viewBox = this.elem.viewBox.baseVal;
 
-          viewBox.x -= (point.x - this._origin.x);
-          viewBox.y -= (point.y - this._origin.y);
-        } else if (this._origin && this._nodes.every(_ => !_.isDragging())) {
+          viewBox.x -= (point.x - origin.x);
+          viewBox.y -= (point.y - origin.y);
+        } else if (origin && this._nodes.every(_ => !_.isDragging())) {
           highlighting = true;
           
-          let left = this._origin.x < point.x ? this._origin.x : point.x;
-          let right = this._origin.x > point.x ? this._origin.x : point.x;
-          let top = this._origin.y < point.y ? this._origin.y : point.y;
-          let bottom = this._origin.y > point.y ? this._origin.y : point.y;
+          let left = origin.x < point.x ? origin.x : point.x;
+          let right = origin.x > point.x ? origin.x : point.x;
+          let top = origin.y < point.y ? origin.y : point.y;
+          let bottom = origin.y > point.y ? origin.y : point.y;
           
           this._highlight.setAttribute('x', left);
           this._highlight.setAttribute('y', top);
@@ -180,22 +179,42 @@ class Board extends Base {
           const node = _.node || _.parentNode.node;
           if (node) {
             node.select();
+            node.on('drag', this.onNodeDrag.bind(this, node));
             this._selected.push(node);
 
-            this.trigger('onselect', this._selected)
+            this.trigger('onselect', this._selected);
           }
-        })
+        });
+        
+        this.reorderItems(this._selected);
 
         this.clearHighlight();
       }
       
+      origin = undefined;
       highlighting = false;
+    });
+  }
 
+  onNodeDrag(node, { dx, dy }) {
+    this._selected.filter(n => n !== node).forEach(n => {
+      n.setXY(n.x + dx, n.y + dy);
+      n._links.forEach(link => link.redrawPath());
+    });
+  }
+
+  reorderItems(selected) {
+    selected.forEach((baseItem) => {
+      this.removeChild(baseItem);
+      this.appendChild(baseItem);
     });
   }
 
   unselectItems() {
-    this._selected.forEach(_ => _.unselect());
+    this._selected.forEach(_ => {
+      _.unselect();
+      _.off('drag', this.onNodeDrag.bind(this, _));
+    });
     this._selected = [];
   }
 
@@ -236,17 +255,20 @@ class Board extends Base {
   
   subscribeToSelection(item) { 
     item.on('clickonly', (e) => {
-      //this.unselectItems();
       if (item.selected) {
         item.unselect();
         this._selected.splice(this._selected.indexOf(item), 1);
 
         this.trigger('ondeselect', this._selected)
       } else {
+        this.unselectItems();
         item.select();
         this._selected.push(item);
 
         this.trigger('onselect', this._selected)
+
+        this.reorderItems(this._selected);
+        this.clearHighlight();
       }
     });
   }

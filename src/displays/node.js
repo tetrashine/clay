@@ -80,7 +80,7 @@ class Node extends Draggable {
     this._links.push(link);
   }
 
-  delLink(link) {
+  deleteLink(link) {
     const inputIndex = this._inputLinks.indexOf(link);
     const outputIndex = this._outputLinks.indexOf(link);
 
@@ -104,6 +104,7 @@ class Node extends Draggable {
     const {x=0, y=0, title='', fontSize=11, color=NODE_COLOR, fontColor=NODE_TEXT_COLOR, description=''} = config;
 
     let sel = this.elem = this.createSvgElement(doc, 'g');
+    this.setXY(x, y);
     sel.setAttribute('transform', `translate(${x},${y})`);
   
     let rect;
@@ -138,6 +139,10 @@ class Node extends Draggable {
 
   destroy() {  
     //remove related links
+    this._links.forEach(link => {
+      link.destroy();
+    });
+
     this.remove();
   }
 
@@ -161,6 +166,8 @@ class Node extends Draggable {
 
   unselect() {
     super.unselect();
+
+    this.elem.removeAttribute('id');
 
     ['.highlight', '#menu-btn', '#svg-table'].forEach(id => {
       const elem = this.elem.querySelector(id);
@@ -201,7 +208,7 @@ class Node extends Draggable {
 
   generateTable(perm, attrs) {
     const table = SvgTable.generate(this._doc, 
-      ['Input', 'Value', `<button class="icon-btn add-btn">${Add}</button`], 
+      ['Attribute', 'Value', `<button class="icon-btn add-btn">${Add}</button`], 
       [
         ...perm,
         ...this.appendWithDeleteBtn(this.toEditable(attrs))
@@ -314,17 +321,35 @@ class Node extends Draggable {
   }
 
   setXY(x, y) {
+    super.setXY(x, y);
     const svg = this._parent;
-    let point = svg.createSVGPoint();
-    const invertedSVGMatrix = svg.getScreenCTM().inverse();
-    point.x = x;
-    point.y = y;
-    point = point.matrixTransform(invertedSVGMatrix);
 
-    this._config.x = point.x;
-    this._config.y = point.y;
+    if (svg) {
+      let point = svg.createSVGPoint();
+      point.x = x;
+      point.y = y;
 
-    this._sel.setAttributeNS(null, 'transform', `translate(${point.x},${point.y})`);
+      const invertedSVGMatrix = svg.getScreenCTM().inverse();
+      point = point.matrixTransform(invertedSVGMatrix);
+
+      this._setXY(point.x, point.y);
+    } else {
+      this._setXY(x, y);
+    }
+  }
+
+  _setXY(x, y) {
+    this.x = this._config.x = x;
+    this.y = this._config.y = y;
+
+    this.elem.setAttributeNS(null, 'transform', `translate(${x},${y})`);
+  }
+
+  addXY(dx, dy) {
+    const x = this.x + dx;
+    const y = this.y + dy;
+
+    this._setXY(x, y);
   }
 
   getFaceCoords() {

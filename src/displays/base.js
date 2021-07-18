@@ -4,12 +4,25 @@ import Evented from 'displays/evented';
 class Base extends Evented {
 
   appendChild(node) {
-    this.elem.appendChild(node.elem);
+    this.appendChildByElement(node.elem);
     node._parent = this.elem;
   }
 
-  appendToDom(elem) {
-    elem.appendChild(this.elem);
+  appendChildByElement(elem) {
+    this.elem.appendChild(elem);
+  }
+
+  removeChild(node) {
+    this.removeChildByElement(node.elem);
+    node._parent = undefined;
+  }
+
+  removeChildByElement(elem) {
+    this.elem.removeChild(elem);
+  }
+
+  setAttribute(key, value) {
+    this.elem.setAttribute(key, value);
   }
 
   createDomElement(doc, type, text, cancel='') {

@@ -10,13 +10,11 @@ const SelectableHOC = (BaseClass) => {
     }
 
     selectable() {
-      //TODO: rethink how decouple `this._sel`
-      this._sel.addEventListener('click', this.clickFn);
+      this.on('clickonly', this.clickFn);
     }
 
     destroy() {   
-      //TODO: rethink how decouple `this._sel`
-      this._sel.removeEventListener('click', this.clickFn);
+      this.off('clickonly', this.clickFn);
     }
 
     unselect() {

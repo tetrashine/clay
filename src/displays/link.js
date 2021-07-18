@@ -82,12 +82,16 @@ class Link extends SelectableHOC(Base) {
 
 	unselect() {
 		super.unselect();
+		this.elem.removeAttribute('id');
 		this.redrawPath();
 	}
 
 	destroy() {
 		this._src.off('drag', this.dragFn);
 		this._target.off('drag', this.dragFn);
+
+		this._src.deleteLink(this);
+		this._target.deleteLink(this);
 		this.remove();
 	}
 

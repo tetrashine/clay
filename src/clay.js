@@ -521,7 +521,7 @@ class Clay extends Base {
 
       //color palette
       let cp1 = new ColorPalette(doc);
-      cp1.appendToDom(fillBtn);
+      fillBtn.appendChildByElement(cp1);
       this._palettes.push(cp1);
 
       fillBtn.onclick = ((svg, cp) => () => {
@@ -548,7 +548,7 @@ class Clay extends Base {
 
       //color palette
       let cp2 = new ColorPalette(doc);
-      cp2.appendToDom(textColorBtn);
+      textColorBtn.appendChildByElement(cp2);
       this._palettes.push(cp2);
 
       textColorBtn.onclick = ((svg, cp) => () => {
