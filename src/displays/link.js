@@ -18,9 +18,9 @@ class Link extends SelectableHOC(Base) {
 		this.initialize(doc, src, output_index, target, input_index);
 	}
 
-	_dragFn(x, y) {
+	_dragFn() {
 		this.redrawPath();
-	};
+	}
 
 	getSrc() { return this._src; }
 	getTarget() { return this._target; }
@@ -99,7 +99,7 @@ class Link extends SelectableHOC(Base) {
     return {
 			type: this._type,
 			dotted: this._dotted,
-		 	mode: this._mode,
+			mode: this._mode,
 			editable: this._editable,
 
 			src: this._src.getIndex(),
@@ -129,7 +129,6 @@ class Link extends SelectableHOC(Base) {
 	
 			case 'elbow':
 			default:
-				let neg, alongTheLine, midStr; 
 				midX = coord1.x + (coord2.x - coord1.x) / 2, 
 				midY = coord1.y + (coord2.y - coord1.y) / 2;
 	
@@ -137,7 +136,7 @@ class Link extends SelectableHOC(Base) {
 				if (coord2.x >= coord1.x + LINK_ARROW_WIDTH + 3) {//right enough
 					d = `M${coord1.x},${coord1.y} L${midX},${coord1.y} L${midX},${coord2.y} L${coord2.x-LINK_ARROW_WIDTH},${coord2.y}`;
 				} else {
-					neg = (coord2.y > coord1.y + 2 * (NODE_HEIGHT/2) + NODE_IO_SIZE) || (coord2.y < coord1.y - (NODE_HEIGHT/2)) ? 1 : -1;
+					const neg = (coord2.y > coord1.y + 2 * (NODE_HEIGHT/2) + NODE_IO_SIZE) || (coord2.y < coord1.y - (NODE_HEIGHT/2)) ? 1 : -1;
 					d = `M${coord1.x},${coord1.y} L${coord1.x + NODE_IO_SIZE},${coord1.y} L${coord1.x + NODE_IO_SIZE},${coord1.y + neg * ((NODE_HEIGHT/2) + NODE_IO_SIZE)} L${coord2.x - NODE_IO_SIZE},${coord1.y + neg * ((NODE_HEIGHT/2) + NODE_IO_SIZE)} L${coord2.x - NODE_IO_SIZE},${coord2.y} L${coord2.x-LINK_ARROW_WIDTH},${coord2.y}`;
 				}
 

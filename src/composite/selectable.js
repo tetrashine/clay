@@ -4,7 +4,7 @@ const SelectableHOC = (BaseClass) => {
 
     constructor(...params) {
       super(...params);
-      this.clickFn = (evt) => {
+      this.clickFn = () => {
         this.trigger('click', this);
       };
     }

@@ -88,7 +88,7 @@ class Draggable extends Base {
     });
   }
 
-  endDrag(evt) {
+  endDrag() {
     if (!this._dragged) this.trigger('clickonly');
     this._dragged = false;
 

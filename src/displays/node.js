@@ -4,8 +4,8 @@ import SvgTable from 'displays/graphics/svgtable';
 
 import { default as config } from 'constants/config';
 const {
-  NODE_WIDTH, NODE_HEIGHT, NODE_COLOR, NODE_DISABLED_COLOR, NODE_BORDER_COLOR, NODE_TEXT_COLOR, NODE_SELECTED_BORDER_COLOR, 
-  NODE_STROKE_WEIGHT, NODE_PADDING, NODE_MAX_INPUT, NODE_MAX_OUTPUT, NODE_IO_SIZE, NODE_IO_SPACING,
+  NODE_WIDTH, NODE_HEIGHT, NODE_COLOR, NODE_DISABLED_COLOR, NODE_BORDER_COLOR, NODE_TEXT_COLOR,  
+  NODE_STROKE_WEIGHT, NODE_PADDING, NODE_IO_SIZE, NODE_IO_SPACING,
   NODE_CONNECTOR_BORDER_COLOR, NODE_IO_HOVER_COLOR, NODE_IO_CONNECTOR_COLOR, BORDER_WIDTH,
 } = config;
 
@@ -66,7 +66,7 @@ class Node extends Draggable {
   parseNodeConfig(node) {
     if (node.type === 'function') {
       this._inputCount = node.inputs.length;
-      this._outputCount = node.outputs.length;;
+      this._outputCount = node.outputs.length;
     }
   }
 
@@ -101,7 +101,7 @@ class Node extends Draggable {
   }
   
   initialize(doc, config) {
-    const {x=0, y=0, title='', fontSize=11, color=NODE_COLOR, fontColor=NODE_TEXT_COLOR, description=''} = config;
+    const {x=0, y=0, title='', fontSize=11, color=NODE_COLOR, fontColor=NODE_TEXT_COLOR} = config;
 
     let sel = this.elem = this.createSvgElement(doc, 'g');
     this.setXY(x, y);
@@ -397,7 +397,7 @@ class Node extends Draggable {
     return this._text._editable;
   }
 
-  makeDefaultTextEditable(keyCode) {
+  makeDefaultTextEditable() {
 
     if (!this._selectedText) {
       const textbox = this._text;
@@ -427,7 +427,7 @@ class Node extends Draggable {
   }
 
   exportAsJson() {
-    const {x, y, title, fontSize, color, description=''} = this._config;
+    const {x, y, title, color, description=''} = this._config;
     return {
       "title": title,
       "description": description,
@@ -512,7 +512,6 @@ class Node extends Draggable {
 
   calcOutputCoords(xOffset=0, yOffset=0) {
     const OUTPUT_COUNT = this._outputCount;
-    const X = -(BORDER_WIDTH + NODE_IO_SIZE + NODE_IO_SPACING);
     const height = OUTPUT_COUNT * NODE_IO_SIZE + (OUTPUT_COUNT - 1) * NODE_IO_SPACING;
     const halfAbove = height / 2;
     const startingY = (halfAbove > (NODE_HEIGHT / 2)) ? -(halfAbove - NODE_HEIGHT / 2) : ((NODE_HEIGHT / 2) - halfAbove);

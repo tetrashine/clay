@@ -164,7 +164,7 @@ class Board extends Base {
       }
     });
 
-    this.elem.addEventListener('mouseup', (evt) => {
+    this.elem.addEventListener('mouseup', () => {
       if (highlighting) {
         //use highlight to select items
         const svgRect = this.elem.createSVGRect();
@@ -254,7 +254,7 @@ class Board extends Base {
   }
   
   subscribeToSelection(item) { 
-    item.on('clickonly', (e) => {
+    item.on('clickonly', () => {
       if (item.selected) {
         item.unselect();
         this._selected.splice(this._selected.indexOf(item), 1);
@@ -299,7 +299,7 @@ class Board extends Base {
     });
   }
 
-  exitSelectionMode(onComplete=()=>{}) {
+  exitSelectionMode() {
     //stop onclick events
     this._sel.onclick = undefined;
   }
@@ -384,7 +384,7 @@ class Board extends Base {
     });
   }
 
-  buildLinkablesByNodes(doc, nodes, onComplete) {
+  /*buildLinkablesByNodes(doc, nodes, onComplete) {
     let linkables = nodes.map(node => {
       let coordsList = node.getFaceCoords();
       let linkables = coordsList.map(coords => this.generateLinkable(doc, coords, node, onComplete));
@@ -405,7 +405,7 @@ class Board extends Base {
     });
   
     return [].concat.apply([], linkables);
-  }
+  }*/
 
   generateLinkable(doc, coords, node, onComplete) {
     const WIDTH = 10;

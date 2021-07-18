@@ -109,7 +109,42 @@ class Clay extends Base {
     return false;
   }
 
-  validate(state) { return true; }
+  validate(state) { 
+    const { title, nodes, links } = state;
+    
+    return (
+      typeof(title) === 'string'
+      && Array.isArray(nodes)
+      && nodes.every(this.validateNode)
+      && Array.isArray(links)
+      && links.every(this.validateLink)
+    );
+  }
+
+  validateNode(node) { 
+    const { title, description, x, y, node: innerNode } = node;
+    return (
+      typeof(title) === 'string'
+      && typeof(description) === 'string'
+      && typeof(x) === 'number'
+      && typeof(y) === 'number'
+      && typeof(innerNode) === 'object'
+    );
+  }
+
+  validateLink(link) { 
+    const { dotted, editable, input_index, mode, output_index, src, target, type } = link;
+    return (
+      typeof(dotted) === 'boolean'
+      && typeof(editable) === 'boolean'
+      && typeof(input_index) === 'number'
+      && typeof(mode) === 'string'
+      && typeof(output_index) === 'number'
+      && typeof(src) === 'number'
+      && typeof(target) === 'number'
+      && typeof(type) === 'string'
+    ); 
+  }
   //#endregion
 
   build(id, config, state) {
@@ -349,10 +384,10 @@ class Clay extends Base {
 
   drawEditMenu(doc, parent, config) {
     const { 
-      width, height, 
+      width,  
       editable, zoomable, colorize, exportable, executable,
     } = config;
-    let svg, tooltip;
+    let svg;
     let div = doc.createElement('div');
     div.setAttribute('style', `height:28px;width:${width-1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
   
@@ -529,7 +564,7 @@ class Clay extends Base {
           this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
-              //this._selected.setFillColor(color);
+              this._selected.setFillColor(color);
             });
           }
         }
@@ -556,7 +591,7 @@ class Clay extends Base {
           this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
-              //this._selected.setFontColor(color);
+              this._selected.setFontColor(color);
             });
           }
         }

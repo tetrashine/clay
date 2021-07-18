@@ -24,10 +24,7 @@ class ColorPalette extends Base {
 
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < 9; j++) {
-        var border = '';
         var color = rgb[i][j];
-        var size = '15px'
-        var hex = parseInt(11 * j, 16);
         var node = _doc.createElement('div');
 
         node.setAttribute('class', 'btn palette');

@@ -1,9 +1,5 @@
 import Base from 'displays/base';
 
-const INDEX_WIDTH = 30;
-const DELETE_WIDTH = 30;
-const TABLE_COL_WIDTH = 60;
-
 class SvgTable extends Base {
 
   generate(doc, header=[], rows=[]) {
@@ -12,7 +8,7 @@ class SvgTable extends Base {
       <tbody class="tb-bd">${
         rows.map((cols, rowIndex) => {
           return Array.isArray(cols) 
-            ? `<tr class="tb-rw"><td class="tb-cell">${rowIndex + 1}.</td>${cols.map((_, colIndex) => `<td class="tb-cell">${_}</td>`).join('')}</tr>`
+            ? `<tr class="tb-rw"><td class="tb-cell">${rowIndex + 1}.</td>${cols.map((_) => `<td class="tb-cell">${_}</td>`).join('')}</tr>`
             : `<tr class="tb-rw"><td class="tb-cell">${rowIndex + 1}.</td><td class="tb-cell">${cols}</td></tr>`;
         }).join('')
       }</tbody>

@@ -1,6 +1,6 @@
 var Base = require('displays/base');
 
-let Button = function (doc) {
+let Button = function (doc, icon, cancel) {
   this.enable();
 
   let sel = this._sel = this.createDomElement(doc, 'span', icon, cancel);
