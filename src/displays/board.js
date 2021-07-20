@@ -108,6 +108,36 @@ class Board extends Base {
   }
   //#endregion
 
+  load(state) {console.log('load', state)
+    //parse new state
+    const {nodes: nodeState, links: linkState} = state;
+    const nodes = this.parseNodes(this._doc, nodeState, this._editable);
+    const links = this.parseLinks(this._doc, linkState, nodes, this._editable);
+
+    //clear current state
+    this.deleteNodes();
+
+    //assignment
+    this.setNodes(nodes);
+    this.setLinks(links);
+  }
+
+  parseNodes(doc, configs, editable) {
+    return configs.map(config => new Node(doc, config.node, {
+      editable: editable,
+      ...config,
+    }));
+  }
+
+  parseLinks(doc, configs, nodes, editable) {
+    return configs.map(config => {
+      const { src, target, output_index, input_index } = config;
+      return new Link(doc, nodes[src], output_index, nodes[target], input_index, {
+        editable: editable
+      })
+    });
+  }
+
   exportState() {
     return {
       "editable": this._editable,
@@ -249,7 +279,6 @@ class Board extends Base {
   }
 
   setLinks(links) { 
-    this._links = links;
     links.forEach(link => this.addLink(link));
   }
   
@@ -274,7 +303,7 @@ class Board extends Base {
   }
 
   enterSelectionMode(onComplete=()=>{}){
-    this._sel.onclick = (evt) => {
+    this.elem.onclick = (evt) => {
       const point = getCoordsFromEvent(evt, this._sel);
 
       //exit
@@ -301,7 +330,7 @@ class Board extends Base {
 
   exitSelectionMode() {
     //stop onclick events
-    this._sel.onclick = undefined;
+    this.elem.onclick = undefined;
   }
 
   enterLinkMode(onComplete=()=>{}) {
@@ -384,104 +413,22 @@ class Board extends Base {
     });
   }
 
-  /*buildLinkablesByNodes(doc, nodes, onComplete) {
-    let linkables = nodes.map(node => {
-      let coordsList = node.getFaceCoords();
-      let linkables = coordsList.map(coords => this.generateLinkable(doc, coords, node, onComplete));
-      node._linkables = linkables;
-      node.on('drag', (x, y) => {
-        //when node is dragged, move all linkables together with it
-        linkables.forEach(linkable => {
-          const WIDTH = 10;
-          let side = linkable.getAttribute('side');
-          let coords = node.getFaceCoord(side);
-  
-          linkable.style.left = `${coords.x-WIDTH/2}px`;
-          linkable.style.top = `${coords.y-WIDTH/2}px`;
-        });
-      });
-  
-      return linkables;
-    });
-  
-    return [].concat.apply([], linkables);
-  }*/
-
-  generateLinkable(doc, coords, node, onComplete) {
-    const WIDTH = 10;
-    let div = this.createDomElement(doc, 'div', '');
-    div.selected = false;
-    div.setAttribute('side', coords.side);
-    div.setAttribute('style', `position:absolute;left:${coords.x-WIDTH/2}px;top:${coords.y-WIDTH/2}px;width:${WIDTH}px;height:${WIDTH}px;background-color: ${NODE_CONNECTOR_COLOR};border: 1px solid ${NODE_CONNECTOR_BORDER_COLOR};border-radius:10px;`);
-    div._node = node;
-  
-    div.onmouseover = () => {
-      if (!div.selected) {
-        div.style.backgroundColor = NODE_CONNECTOR_HOVER_COLOR;
-      }
-    };
-  
-    div.onmouseout = () => {
-      if (!div.selected) {
-        div.style.backgroundColor = NODE_CONNECTOR_COLOR;
-      }
-    };
-  
-    div.onclick = () => {
-      let node = div._node;
-  
-      if (this._linked) {
-        this._mode = EditMode.None;
-  
-        //complete linking target
-        this._linked._link.setTarget(node, div.getAttribute('index'));
-        this._linked._link.setDotted(false);
-        this._linked._link.selectable();
-  
-        this._linked._link = undefined;
-        this._linked.selected = false;
-        this._linked.style.backgroundColor = NODE_CONNECTOR_COLOR;
-        this._linked = undefined;
-  
-        //exit
-        this.exitLinkMode();
-        onComplete();
-        
-      } else {
-        //linking src
-        this._linked = div;
-        div.selected = true;
-        div.style.backgroundColor = NODE_CONNECTOR_SELECTED_COLOR;
-  
-        //hide linkables from same nodes
-        node._linkables.forEach(linkable => {
-          if (linkable != div) linkable.style.display = "none";
-        });
-  
-        //draw link from clicked to mouse
-        let index = div.getAttribute('index');
-        let link = new Link(this._doc, node, index, new Mouse(this.elem.offsetLeft, this.elem.offsetTop), -1, {
-          dotted: true,
-          editable: this._editable,
-        });
-        div._link = link;
-  
-        //add to links
-        this.addLink(link);
-      }
-    }
-  
-    return div;
-  }
-
   delete(item) {
     //if node, delete links related to it
-    this._nodes.splice(this._nodes.indexOf(item), 1);
-  
-    // if link
-    this._links.splice(this._links.indexOf(item), 1);
-  
+    if (this._nodes.indexOf(item) >= 0) {
+      this._nodes.splice(this._nodes.indexOf(item), 1);
+      this._nodes.forEach((node, index) => node.setIndex(index));
+    } else if (this._links.indexOf(item) >= 0) {
+      // if link
+      this._links.splice(this._links.indexOf(item), 1);
+    }
+    
     item.destroy(); 
+  }
+
+  deleteNodes() {
+    this._nodes.forEach(node => node.destroy());
+    this._nodes = [];
   }
 
   oppositeSide(side) {

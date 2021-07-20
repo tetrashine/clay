@@ -26,6 +26,8 @@ import {ZoomMode} from 'constants/zoommode';
 //#endregion
 
 //#region SVG Decalations
+const MAX_UNDO = 10;
+
 const ICON_SIZE = 18;
 const MENU_CLASS = 'class="menu-btn"';
 const SIZE = `width="${ICON_SIZE}" height="${ICON_SIZE}"`;
@@ -38,9 +40,43 @@ class Clay extends Base {
   //#region Constructor
   constructor(id, config, state) {
     super();
+
+    this._ActionFunctions = {
+      'enterZoomInMode': () => {
+        this._board.enterZoomMode(ZoomMode.ZoomIn);
+      },
+      'enterZoomOutMode': () => {
+        this._board.enterZoomMode(ZoomMode.ZoomOut);
+      },
+      'deleteSelectedFn': () => {
+        this._selected.forEach(_ => this._board.delete(_));
+        this._selected = [];
+      
+        this.menuCalibration();
+      },
+      'unselectFn': () => {
+        this._selected.forEach(_ => _.unselect());
+        this._selected = [];
+        this.menuCalibration();
+      },
+      'onExecCompleteFn': () => {
+        this.resetMenuBtns();
+      },
+    };
+
+    Object.keys(this._ActionFunctions).forEach(key => {
+      const tempFn = this._ActionFunctions[key];
+      this._ActionFunctions[key] = ((...attrs) => {
+        this._undoStates.push([this._selected, this._board.exportState()]);
+        if (this._undoStates.length >= MAX_UNDO) this._undoStates.shift();
+        tempFn(...attrs);
+      });
+    });
     
     this._buttons = {};
     this._palettes = [];
+    this._undoStates = [];
+    this._redoStates = [];
 
     this.initialize();
     [this._dom, this._menu, this._board] = this.build(id, config, state);
@@ -87,11 +123,7 @@ class Clay extends Base {
   generate(doc, dom, config, state) {
     const {width, height, zoom, editable} = config;
     let board = new Board(doc, dom, width, height, zoom, editable);
-    let nodes = this.parseNodes(doc, state.nodes, editable);
-    let links = this.parseLinks(doc, state.links, nodes, editable);
-  
-    board.setNodes(nodes);
-    board.setLinks(links);
+    board.load(state);
   
     return board;
   }
@@ -122,13 +154,14 @@ class Clay extends Base {
   }
 
   validateNode(node) { 
-    const { title, description, x, y, node: innerNode } = node;
+    const { title, description, x, y, node: innerNode, attrs } = node;
     return (
       typeof(title) === 'string'
       && typeof(description) === 'string'
       && typeof(x) === 'number'
       && typeof(y) === 'number'
       && typeof(innerNode) === 'object'
+      && Array.isArray(attrs)
     );
   }
 
@@ -292,6 +325,14 @@ class Clay extends Base {
             : this.disableMenuBtn(this._buttons[_])
         }
       });
+
+      this._undoStates && this._undoStates.length > 0
+        ? this.enableMenuBtn(this._buttons.undo) 
+        : this.disableMenuBtn(this._buttons.undo)
+
+      this._redoStates && this._redoStates.length > 0
+        ? this.enableMenuBtn(this._buttons.redo) 
+        : this.disableMenuBtn(this._buttons.redo)
     }
   }
 
@@ -361,22 +402,6 @@ class Clay extends Base {
   save() {
     return this._config;
   }
-
-  parseNodes(doc, configs, editable) {
-    return configs.map(config => new Node(doc, config.node, {
-      editable: editable,
-      ...config,
-    }));
-  }
-
-  parseLinks(doc, configs, nodes, editable) {
-    return configs.map(config => {
-      const { src, target, output_index, input_index } = config;
-      return new Link(doc, nodes[src], output_index, nodes[target], input_index, {
-        editable: editable
-      })
-    });
-  }
   
   subscribe(evt, callback) {
     this.on(evt, callback);
@@ -391,10 +416,6 @@ class Clay extends Base {
     let div = doc.createElement('div');
     div.setAttribute('style', `height:28px;width:${width-1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
   
-    const onExecCompleteFn = () => {
-      this.resetMenuBtns();
-    };
-  
     //LINK BUTTON
     if (editable) {
       //NODE BUTTON
@@ -404,7 +425,7 @@ class Clay extends Base {
         cancelSvg: CANCEL_SVG, 
         tooltip: 'New node', 
         execFn: () => {
-          this._board.enterNodeMode(onExecCompleteFn);
+          this._board.enterNodeMode(this._ActionFunctions.onExecCompleteFn);
         },
         cancelFn: () => {
           this._board.exitNodeMode();
@@ -420,7 +441,7 @@ class Clay extends Base {
         cancelSvg: CANCEL_SVG, 
         tooltip: 'New link', 
         execFn: () => {
-          this._board.enterLinkMode(onExecCompleteFn);
+          this._board.enterLinkMode(this._ActionFunctions.onExecCompleteFn);
         },
         cancelFn: () => {
           this._board.exitLinkMode();
@@ -440,7 +461,15 @@ class Clay extends Base {
         svg: UNDO_SVG,
         tooltip: 'Undo', 
         onClick: () => {},
-        enable: false
+        enable: false,
+        onClick: () => {
+          this._redoStates.push([this._selected, this._board.exportState()]);
+          const [selected, state] = this._undoStates.pop();
+          this.menuCalibration();
+
+          this._selected = selected;
+          this._board.load(state);
+        },
       });
       this._buttons.undo = undoBtn;
       div.appendChild(undoBtn);
@@ -450,7 +479,14 @@ class Clay extends Base {
         doc: doc, 
         svg: REDO_SVG,
         tooltip: 'Redo', 
-        onClick: () => {},
+        onClick: () => {
+          this._undoStates.push([this._selected, this._board.exportState()]);
+          const [selected, state] = this._redoStates.pop();
+          this.menuCalibration();
+
+          this._selected = selected;
+          this._board.load(state);
+        },
         enable: false
       });
       this._buttons.redo = redoBtn;
@@ -467,11 +503,7 @@ class Clay extends Base {
         cancelSvg: CANCEL_SVG,
         tooltip: 'Unselect', 
         enable: false,
-        onClick: () => {
-          this._selected.forEach(_ => _.unselect());
-          this._selected = [];
-          this.menuCalibration();
-        },
+        onClick: this._ActionFunctions.unselectFn
       });
       this._buttons.unselect = unselectBtn; 
       div.appendChild(unselectBtn);
@@ -483,14 +515,7 @@ class Clay extends Base {
         cancelSvg: CANCEL_SVG,
         tooltip: 'Delete', 
         enable: false,
-        onClick: () => {
-          //if (svg._enable) {
-            this._selected.forEach(_ => this._board.delete(_));
-            this._selected = [];
-
-            this.menuCalibration();
-          //}
-        },
+        onClick: this._ActionFunctions.deleteSelectedFn
       });
       this._buttons.delete = deleteBtn; 
       div.appendChild(deleteBtn);
