@@ -11,6 +11,10 @@ modulesByRules = {
       test: /\.(js)$/,
       exclude: /node_modules/,
       use: "babel-loader"
+    }, {
+      test: /\.ts$/,
+      exclude: /node_modules/,
+      use: "ts-loader"
     }
   ]
 };
@@ -19,6 +23,7 @@ module.exports = [{
   target: 'web',
   entry: './index.js',
   resolve: {
+    extensions: ['.ts', '.js', '.json'],
     modules:[
       path.resolve(__dirname, 'node_modules'),
       path.resolve(__dirname, "src")

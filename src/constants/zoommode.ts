@@ -1,0 +1,1 @@
+export const ZoomMode: { ZoomIn: number, ZoomOut: number } = { ZoomIn: 0, ZoomOut: 1 };

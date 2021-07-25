@@ -1,7 +1,9 @@
 import Base from 'displays/base';
 import SelectableHOC from 'composite/selectable';
 
-const getCoordsFromEvent = ev => {
+import { Point } from 'types/index';
+
+const getCoordsFromEvent = (ev: any) => {
   if (ev.changedTouches) {
     ev = ev.changedTouches[0]
   }
@@ -9,13 +11,22 @@ const getCoordsFromEvent = ev => {
 }
 
 class Draggable extends Base {
+  private _x: number;
+  private _y: number;
+  private _enabled: boolean;
+  private _dragged: boolean;
+  private _offset: {x: number, y: number};
+  private startDragFn: (evt:any) => void;
+  private dragFn: (evt:any) => void;
+  private endDragFn: () => void;
+
   constructor() {
     super();
     this._enabled = false;
     this._dragged = false;
   }
 
-  draggable(el) {
+  draggable(el: any): void {
     this._enabled = true;
   
     this.startDragFn = this.startDrag.bind(this);
@@ -25,7 +36,7 @@ class Draggable extends Base {
     this.init(this.enabled, el);
   }
 
-  init(enabled, el) {
+  init(enabled: boolean, el: any): void {
     el.addEventListener('mousedown', this.startDragFn);
     el.addEventListener('touchstart', this.startDragFn, { passive: false });
   }
@@ -46,7 +57,7 @@ class Draggable extends Base {
     this.stopListening();
   }
 
-  startDrag(evt) {
+  startDrag(evt: any): void {
 
     // Prevent browser drag behavior as soon as possible
     evt.preventDefault()
@@ -57,7 +68,7 @@ class Draggable extends Base {
     //setup last click
     var clicked = getCoordsFromEvent(evt);
     var rect = this.elem.getBoundingClientRect();
-    this.offset = {
+    this._offset = {
       x: clicked.x - rect.x,
       y: clicked.y - rect.y
     };
@@ -71,18 +82,23 @@ class Draggable extends Base {
     window.addEventListener('touchend', this.endDragFn, { passive: false })
   }
 
-  drag(evt) {
+  drag(evt: any): void {
     this._dragged = true;
-    const offset = this.offset;
+    const offset = this._offset;
     const coord = getCoordsFromEvent(evt);
   
     const x = coord.x - offset.x;
     const y = coord.y - offset.y;
     const dx = x - this.x;
     const dy = y - this.y;
-    this.setXY(x, y);
+    this.setXY({
+      x: x, 
+      y: y
+    });
   
     this.trigger('drag', {
+      x: x,
+      y: y,
       dx: dx,
       dy: dy,
     });
@@ -98,12 +114,12 @@ class Draggable extends Base {
     window.removeEventListener('touchend', this.endDragFn);
   }
   
-  setXY(x, y) {
-    this._x = x;
-    this._y = y;
+  setXY(point: Point): void {
+    this.x = point.x;
+    this.y = point.y;
   }
 
-  isDragging() {
+  isDragging(): boolean {
     return this._dragged;
   }
 
@@ -121,6 +137,10 @@ class Draggable extends Base {
 
   set y(v) {
     this._y = v;
+  }
+
+  get enabled() {
+    return this._enabled;
   }
 }
 

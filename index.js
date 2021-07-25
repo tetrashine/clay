@@ -1,3 +1,3 @@
-import Clay from './src/clay.js';
+import Clay from './src/clay';
 
 export default Clay;

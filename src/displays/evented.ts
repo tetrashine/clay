@@ -1,16 +1,20 @@
+
+type GenericFunction = (...args: any[]) => void;
+
 class Evented {
+  private _events: { [key: string]: GenericFunction[] };
 
   constructor() {
     this._events = {};
   }
 
-  _defaulted(name) {
+  _defaulted(name: string): void {
     if (!this._events[name]) {
       this._events[name] = [];
     }
   }
 
-  off(name, callback) {
+  off(name: string, callback: GenericFunction): void {
     this._defaulted(name);
   
     var arr = this._events[name];
@@ -22,27 +26,27 @@ class Evented {
     }
   }
 
-  on(name, callback) {
+  on(name: string, callback: GenericFunction): void {
     this._defaulted(name);
   
     this._events[name].push(callback);
   }
 
-  once(name, callback) {
+  once(name: string, callback: GenericFunction): void {
     this._defaulted(name);
 
-    var func = (...params) => {
-      callback.call(this, ...params);
+    let func: GenericFunction = (...args: any[]): void => {
+      callback.call(this, ...args);
       this.off(name, func);
     };
 
     this._events[name].push(func);
   }
 
-  trigger(name, ...params) {
+  trigger(name: string, ...args: any[]): void {
     if (this._events[name]) {
-      this._events[name].forEach(_ => {
-        _.call(this, ...params);
+      this._events[name].forEach((_: GenericFunction) => {
+        _.call(this, ...args);
       });
     }
   }

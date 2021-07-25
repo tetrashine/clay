@@ -3,10 +3,21 @@ import SelectableHOC from 'composite/selectable';
 
 import { default as config } from 'constants/config';
 const { NODE_HEIGHT, LINK_COLOR, LINK_SELECTED_COLOR, LINK_ARROW_WIDTH, NODE_IO_SIZE } = config;
+import { Point, LinkState } from 'types/index';
+import INode from 'interfaces/inode';
 
 class Link extends SelectableHOC(Base) {
+	private _type: string;
+	private _dotted: boolean;
+	private _mode: string;
+	private _editable: boolean;
 
-	constructor(doc, src, output_index, target, input_index, {type='regular', dotted=false, mode='elbow', editable=true}) {
+	private _src: INode;
+	private _target: INode;
+	private _input_index: number;
+	private _output_index: number;
+
+	constructor(doc: any, src: INode, output_index: number, target: INode, input_index: number, {type= 'regular', dotted=false, mode='elbow', editable=true}) {
 		super();
 
 		//configuration
@@ -14,88 +25,74 @@ class Link extends SelectableHOC(Base) {
 		this._dotted = dotted;
 		this._mode = mode;
 		this._editable = editable;
-		
+
 		this.initialize(doc, src, output_index, target, input_index);
 	}
 
-	_dragFn() {
-		this.redrawPath();
-	}
-
-	getSrc() { return this._src; }
-	getTarget() { return this._target; }
-	setTarget(target, input_index) { 
-		this._target.off('drag', this.dragFn);
+	getSrc(): INode { return this._src; }
+	getTarget(): INode { return this._target; }
+	setTarget(target: INode, input_index: number): void { 
 		this._target.destroy();
 		this._target = target;
-		this._input_index = parseInt(input_index) - 1;
-		target.on('drag', this.dragFn);
-		target.addLink(this);
+		this._input_index = input_index - 1;
+		target.addLink(this, 'input');
 
 		this.redrawPath();
 	}
 
-	setDotted(dotted) { 
+	setDotted(dotted: boolean): void { 
 		this._dotted = dotted; 
 		this.redrawPath();
 	}
 
-	redrawPath() {
-		let coord1 = this._src.getOutputCoord(this._output_index);
-		let coord2 = this._target.getInputCoord(this._input_index);
+	redrawPath(): void {
+		let coord1: Point = this._src.getOutputCoord(this._output_index);
+		let coord2: Point = this._target.getInputCoord(this._input_index);
 	
-		const path = this.elem.firstChild;
-		path.setAttribute('stroke', this._selected ? LINK_SELECTED_COLOR : LINK_COLOR);
-		path.setAttribute('marker-end', this._selected ? "url(#head-selected)" : "url(#head)");
+		const path: any = this.elem.firstChild;
+		path.setAttribute('stroke', this.selected ? LINK_SELECTED_COLOR : LINK_COLOR);
+		path.setAttribute('marker-end', this.selected ? "url(#head-selected)" : "url(#head)");
 		path.setAttribute('stroke-dasharray', this._dotted && '10,10');
 		path.setAttribute('d', this.formPath(this._mode, coord1, coord2));
 	}
 
-	initialize(doc, src, output_index, target, input_index) {
+	initialize(doc: any, src: INode, output_index: number, target: INode, input_index: number) {
 		this._src = src;
-		this._output_index = parseInt(output_index) - 1;
+		this._output_index = output_index - 1;
 		this._target = target;
-		this._input_index = parseInt(input_index) - 1;
+		this._input_index = input_index - 1;
 
 		src.addLink(this, 'output');
 		target.addLink(this, 'input');
 
 		const xmlns = "http://www.w3.org/2000/svg";
-		const sel = this.elem = this.createSvgElement(doc, 'g');
-		const path = doc.createElementNS(xmlns, 'path');
+		const sel: any = this.elem = this.createSvgElement(doc, 'g');
+		const path: any = doc.createElementNS(xmlns, 'path');
 		sel.appendChild(path);
-	
-		this.dragFn = this._dragFn.bind(this);
 	
 		path.setAttribute('stroke-width', "2");
 		path.setAttribute('fill', "none");
 		this.redrawPath();
-	
-		src.on('drag', this.dragFn);
-		target.on('drag', this.dragFn);
 	}
 
-	select() {
+	select(): void {
 		super.select();
 		this.redrawPath();
 	}
 
-	unselect() {
+	unselect(): void {
 		super.unselect();
 		this.elem.removeAttribute('id');
 		this.redrawPath();
 	}
 
-	destroy() {
-		this._src.off('drag', this.dragFn);
-		this._target.off('drag', this.dragFn);
-
+	destroy(): void {
 		this._src.deleteLink(this);
 		this._target.deleteLink(this);
 		this.remove();
 	}
 
-	exportAsJson() {
+	exportAsJson(): LinkState {
     return {
 			type: this._type,
 			dotted: this._dotted,
@@ -109,7 +106,7 @@ class Link extends SelectableHOC(Base) {
     };
 	}
 
-	formPath(mode, coord1, coord2) {
+	formPath(mode: string, coord1: Point, coord2: Point): string {
 		let d, midX, midY;
 		switch(mode) {
 			case 'direct':
@@ -143,7 +140,7 @@ class Link extends SelectableHOC(Base) {
 				break;
 		}
 	
-		return d
+		return d;
 	}
 }
 

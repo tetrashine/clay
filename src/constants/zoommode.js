@@ -1,1 +1,0 @@
-export const ZoomMode = { ZoomIn: 0, ZoomOut: 1 };

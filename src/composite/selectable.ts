@@ -1,20 +1,23 @@
-const SelectableHOC = (BaseClass) => {
+const SelectableHOC = (BaseClass: any) => {
 
   return class extends BaseClass {
+    private _clickFn: () => void;
+    private _selected: boolean;
 
-    constructor(...params) {
-      super(...params);
-      this.clickFn = () => {
+    constructor(...args: any[]) {
+      // @ts-ignore: generic spread
+      super(...args);
+      this._clickFn = ():void => {
         this.trigger('click', this);
       };
     }
 
     selectable() {
-      this.on('clickonly', this.clickFn);
+      this.on('clickonly', this._clickFn);
     }
 
     destroy() {   
-      this.off('clickonly', this.clickFn);
+      this.off('clickonly', this._clickFn);
     }
 
     unselect() {

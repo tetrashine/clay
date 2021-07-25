@@ -2,47 +2,48 @@
 import Evented from 'displays/evented';
 
 class Base extends Evented {
+  private _sel: any;
 
-  appendChild(node) {
+  appendChild(node: any): void {
     this.appendChildByElement(node.elem);
     node._parent = this.elem;
   }
 
-  appendChildByElement(elem) {
+  appendChildByElement(elem: any): void {
     this.elem.appendChild(elem);
   }
 
-  removeChild(node) {
+  removeChild(node: any): void {
     this.removeChildByElement(node.elem);
     node._parent = undefined;
   }
 
-  removeChildByElement(elem) {
+  removeChildByElement(elem: any): void {
     this.elem.removeChild(elem);
   }
 
-  setAttribute(key, value) {
+  setAttribute(key: string, value: any): void {
     this.elem.setAttribute(key, value);
   }
 
-  createDomElement(doc, type, text, cancel='') {
-    let func = (['svg', 'g', 'text', 'rect', 'foreignobject'].indexOf(type.toLowerCase()) >= 0) ? this.createSvgElement : this.createNonSvgElement;
-    let elem = func.call(this, doc, type);
+  createDomElement(doc: any, type: string, text: string, cancel:string = '') {
+    let func: any = (['svg', 'g', 'text', 'rect', 'foreignobject'].indexOf(type.toLowerCase()) >= 0) ? this.createSvgElement : this.createNonSvgElement;
+    let elem: any = func.call(this, doc, type);
     elem.innerHTML = text;
     elem._svg = text;
     elem._cancel = cancel;
     return elem;
   }
 
-  createNonSvgElement(doc, type) {
+  createNonSvgElement(doc: any, type: string): void {
     return doc.createElement(type);
   }
 
-  createSvgElement(doc, type) {
+  createSvgElement(doc: any, type: string): void {
     return doc.createElementNS("http://www.w3.org/2000/svg", type);
   }
 
-  remove() {
+  remove(): void {
     this.elem.remove();
   }
 

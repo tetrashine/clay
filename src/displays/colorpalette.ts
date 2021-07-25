@@ -1,7 +1,10 @@
 import Base from 'displays/base';
 
 class ColorPalette extends Base {
-  constructor(doc) {
+  private _doc: any;
+  private _hidden: boolean;
+
+  constructor(doc: any) {
     super();
 
     this._doc = doc;
@@ -9,23 +12,23 @@ class ColorPalette extends Base {
     this.initialize();
   }
 
-  initialize() {
+  initialize(): void {
     const {_doc, _hidden} = this;
-    let sel = this._sel = _doc.createElement('div');
+    let sel: any = this.elem = _doc.createElement('div');
     sel.setAttribute('style', `position:absolute;background-color:white;box-shadow:rgba(60, 64, 67, 0.15) 0px 2px 6px 2px;padding:5px;width:162px;
       ${_hidden ? 'visibility:hidden' : 'visibility:visible'}
     `);
 
-    const rgb = [
+    const rgb: string[][] = [
       ['#4d4d4d', '#999999', '#fff', '#f44e3b', '#fe9200', '#fcdc00', '#dbdf00', '#a4dd00', '#68ccca', '#73d8ff', '#aea1ff', '#fda1ff'],
       ['#333', '#808080', '#ccc', '#d33115', '#e27300', '#fcc400', '#b0bc00', '#68bc00', '#16a5a5', '#68ccca', '#009ce0', '#7b64ff'],
       ['#000', '#666', '#b3b3b3', '#9f0500', '#c45100', '#fb9e00', '#808900', '#194d33', '#0c797d', '#0062b1', '#653294', '#ab149e']
     ];
 
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 9; j++) {
-        var color = rgb[i][j];
-        var node = _doc.createElement('div');
+    for (let i: number = 0; i < 3; i++) {
+      for (let j: number = 0; j < 9; j++) {
+        var color: string = rgb[i][j];
+        var node: any = _doc.createElement('div');
 
         node.setAttribute('class', 'btn palette');
         if (color === '#fff') { 
@@ -41,7 +44,7 @@ class ColorPalette extends Base {
           `);
         }
         
-        node.onclick = ((color) => (evt) => {
+        node.onclick = ((color) => (evt: any) => {
           // Prevent browser drag behavior as soon as possible
           evt.preventDefault()
         
@@ -57,19 +60,19 @@ class ColorPalette extends Base {
     }
   }
 
-  toggle() {
+  toggle(): boolean {
     (this._hidden) ? this.show() : this.hide();
     return !this._hidden;
   }
 
-  hide() {
+  hide(): void {
     this._hidden = true;
-    this._sel.style.visibility = 'hidden';
+    this.elem.style.visibility = 'hidden';
   }
 
-  show() {
+  show(): void {
     this._hidden = false;
-    this._sel.style.visibility = 'visible';
+    this.elem.style.visibility = 'visible';
   }
 }
 

@@ -2,7 +2,6 @@
 import Base from 'displays/base';
 import Board from 'displays/board';
 import Node from 'displays/node';
-import Link from 'displays/link';
 import ColorPalette from 'displays/colorpalette';
 import {
   CancelInRed as CANCEL_SVG,
@@ -23,6 +22,8 @@ const {
 import {KeyCode} from 'constants/keycode';
 import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
+
+import { NodeConfig, LinkState, BoardConfig, BoardState } from 'types/index';
 //#endregion
 
 //#region SVG Decalations
@@ -36,9 +37,30 @@ const EXPORT_SVG = `<svg ${MENU_CLASS} enable-background="new 0 0 551.13 551.13"
 const UNSELECT_SVG = `<svg ${MENU_CLASS} viewBox="0 0 512 512" ${SIZE}><path d="m410.667969 368h-117.335938c-8.832031 0-16-7.167969-16-16s7.167969-16 16-16h117.335938c8.832031 0 16 7.167969 16 16s-7.167969 16-16 16zm0 0"/><path d="m116.179688 288c-11.175782 0-21.351563-7.019531-25.320313-17.449219l-89.023437-233.707031c-1.089844-2.285156-1.835938-5.867188-1.835938-9.730469 0-14.953125 12.179688-27.113281 27.136719-27.113281 3.753906 0 7.296875.726562 10.496093 2.15625l232.9375 88.703125c10.410157 3.945313 17.429688 14.121094 17.429688 25.300781 0 11.753906-7.507812 22.121094-18.6875 25.792969l-95.9375 31.421875-31.421875 95.914062c-3.628906 11.160157-13.996094 18.710938-25.773437 18.710938zm-80.617188-252.414062 80.277344 210.644531 29.652344-90.519531c1.601562-4.839844 5.378906-8.640626 10.21875-10.21875l90.519531-29.652344zm223.636719 85.183593h.214843zm-233.769531-89.046875c.085937.019532.171874.0625.277343.085938zm5.910156-7.253906.382812 1.003906c-.105468-.277344-.234375-.640625-.382812-1.003906zm0 0"/><path d="m352 512c-88.234375 0-160-71.765625-160-160s71.765625-160 160-160 160 71.765625 160 160-71.765625 160-160 160zm0-288c-70.59375 0-128 57.40625-128 128s57.40625 128 128 128 128-57.40625 128-128-57.40625-128-128-128zm0 0"/></svg>`;
 //#endregion
 
+
+type M = { [key:string]: any; };
+
 class Clay extends Base {
+
+  private _dom: any;
+  private _menu: any;
+  private _board: Board;
+  private _mode: number;
+  private _config: BoardConfig;
+  private _state: BoardState;
+
+  private _ActionFunctions: { [key:string]: () => void; }
+  private _buttons: M;
+  private _palettes: ColorPalette[];
+  private _undoStates: any[];
+  private _redoStates: any[];
+  private _selected: Node[];
+  private _selectedSvg: any;
+
+  private menuCalibration: ()=>void;
+
   //#region Constructor
-  constructor(id, config, state) {
+  constructor(id: string, config: BoardConfig, state: BoardState) {
     super();
 
     this._ActionFunctions = {
@@ -81,46 +103,43 @@ class Clay extends Base {
     this.initialize();
     [this._dom, this._menu, this._board] = this.build(id, config, state);
 
-    this.menuCalibration = this.menuCalibration(this._config);
+    this.menuCalibration = this._menuCalibration(this._config);
   }
   //#endregion
 
   //#region Public Functions
-  addNode(title, nodeConfig, selection=true) {
+  addNode(title: string, nodeConfig: NodeConfig, selection=true): void {
     const {editable} = this._config;
-    let node;
+    let node: Node;
     if (selection) {
       this._board.enterSelectionMode((point) => {
-        node = new Node(document, nodeConfig, {
+        node = new Node(document, {
           title: title,
           x: point.x,
           y: point.y,
           editable: editable,
+          inputs: [],
+          outputs: []
         });
         this._board.addNode(node);
       });
     } else {
-      node = new Node(document, nodeConfig, {
-        title: title,
-        x: 0,
-        y: 0,
-        editable: editable,
-      });
+      node = new Node(document, nodeConfig);
       this._board.addNode(node);
     }
   }
 
-  export() {
+  export(): BoardState {
     const state = this._board.exportState();
     this.trigger('export', state);
     return state;
   }
 
-  load(config, state) {  
+  load(config: BoardConfig, state: BoardState): [any, any, Board] {  
     return this._load(this._dom, config, state);
   }
 
-  generate(doc, dom, config, state) {
+  generate(doc: any, dom: any, config: BoardConfig, state: BoardState): Board {
     const {width, height, zoom, editable} = config;
     let board = new Board(doc, dom, width, height, zoom, editable);
     board.load(state);
@@ -128,11 +147,11 @@ class Clay extends Base {
     return board;
   }
 
-  setConfig(config) {
+  setConfig(config: BoardConfig): void {
     this._config = this.applyDefault(config);
   }
 
-  setState(state) {
+  setState(state: BoardState): boolean {
     if (this.validate(state)) {
       this._state = state;
       return true;
@@ -141,7 +160,7 @@ class Clay extends Base {
     return false;
   }
 
-  validate(state) { 
+  validate(state: BoardState): boolean { 
     const { title, nodes, links } = state;
     
     return (
@@ -153,19 +172,18 @@ class Clay extends Base {
     );
   }
 
-  validateNode(node) { 
-    const { title, description, x, y, node: innerNode, attrs } = node;
+  validateNode(node: NodeConfig): boolean { 
+    const { title, description, x, y, attrs } = node;
     return (
       typeof(title) === 'string'
       && typeof(description) === 'string'
       && typeof(x) === 'number'
       && typeof(y) === 'number'
-      && typeof(innerNode) === 'object'
       && Array.isArray(attrs)
     );
   }
 
-  validateLink(link) { 
+  validateLink(link: LinkState): boolean { 
     const { dotted, editable, input_index, mode, output_index, src, target, type } = link;
     return (
       typeof(dotted) === 'boolean'
@@ -180,14 +198,14 @@ class Clay extends Base {
   }
   //#endregion
 
-  build(id, config, state) {
+  build(id: string, config: BoardConfig, state: BoardState): [any, any, Board] {
     this.setConfig(config);
     if (this.setState(state)) { 
       return this._build(id, this._config, this._state);
     }
   }
 
-  _build(id, config, state) {
+  _build(id: string, config: BoardConfig, state: BoardState): [any, any, Board] {
     //generate css
     var style = document.createElement('style');
     const styles = [
@@ -214,7 +232,7 @@ class Clay extends Base {
     return this._load(this._dom, config, state);
   }
 
-  _load(dom, config, state) {
+  _load(dom: any, config: BoardConfig, state: BoardState): [any, any, Board] {
     const {editable} = config;
 
     let menu = editable && this.drawEditMenu(document, dom, config);
@@ -232,7 +250,7 @@ class Clay extends Base {
     return [dom, menu, board];
   }
 
-  createZoomLevelElement(doc) {
+  createZoomLevelElement(doc: any): any {
     const zoomDiv = this.createDomElement(doc, 'div', '');
     const zoomInput = this.createDomElement(doc, 'input', '');
     const zoomPercent = this.createDomElement(doc, 'div', '%');
@@ -240,7 +258,7 @@ class Clay extends Base {
     zoomPercent.setAttribute('style', 'position: absolute;right:4px;margin-top:3px;')
     zoomInput.setAttribute('value', '100')
     zoomInput.setAttribute('style', 'color:#333;width:25px;border:none;')
-    zoomInput.onchange = (evt) => {
+    zoomInput.onchange = (evt: any) => {
       const scale = parseFloat(evt.target.value);
       this._board.zoom(scale / 100);
     }
@@ -249,21 +267,27 @@ class Clay extends Base {
     return zoomDiv;
   }
 
-  createHrElement(doc) {
+  createHrElement(doc: any): any {
     let hr = this.createDomElement(doc, 'span', '|', '');
     hr.setAttribute('style', 'color:#bbb;display:table-cell;width:1px;vertical-align:middle;')
     return hr;
   }
 
-  createMenuElement(doc, icon, cancel='') {
+  createMenuElement(doc: any, icon: string, cancel=''): any {
     let ele = this.createDomElement(doc, 'div', icon, cancel);
     ele.setAttribute('class', 'clay-mb e');
     return ele;
   }
 
   createMenuBtnElement({
-    doc, svg, cancelSvg='', tooltip, enable=true,
-    onClick, execFn, cancelFn,
+    doc, svg, tooltip,
+    onClick, execFn, cancelFn, cancelSvg='',
+    enable=true,
+  }: {
+    doc: any, svg: any, tooltip: string,
+    onClick?: (evt: any)=>void, execFn?: (evt: any)=>void, cancelFn?: (evt: any)=>void, 
+    cancelSvg?: string,
+    enable?: boolean
   }) {
     const menuElem = this.createMenuElement(doc, svg, cancelSvg);
     const tooltipElem = this.createDomElement(doc, 'span', tooltip);
@@ -286,17 +310,17 @@ class Clay extends Base {
     return menuElem;
   }
 
-  enableMenuBtn(btn) { 
+  enableMenuBtn(btn: any): void { 
     btn._enable = true;
     btn.setAttribute('class', 'clay-mb e');
   }
 
-  disableMenuBtn(btn) {
+  disableMenuBtn(btn: any): void {
     btn._enable = false;
     btn.setAttribute('class', 'clay-mb s');
   }
 
-  applyDefault(config) {
+  applyDefault(config: BoardConfig): BoardConfig {
     return {
       ...{ 
         editable: true, 
@@ -309,16 +333,16 @@ class Clay extends Base {
     }
   }
 
-  initialize() {}
+  initialize(): void {}
 
-  menuCalibration(config) {
-    return () => {
+  _menuCalibration(config?: BoardConfig): ()=>void {
+    return (): void => {
       [
         ['unselect', 'editable'], 
         ['delete', 'editable'], 
         ['fill', 'colorize'], 
         ['fontfill', 'colorize']
-      ].forEach(([_, doable]) => {
+      ].forEach(([_, doable]: (keyof BoardConfig)[]) => {
         if (config[doable]) {
           (this._selected && this._selected.length > 0) 
             ? this.enableMenuBtn(this._buttons[_]) 
@@ -336,7 +360,7 @@ class Clay extends Base {
     }
   }
 
-  onKeyDown(e) {
+  onKeyDown(e: any): void {
     if (e.keyCode === KeyCode.SpaceBar) {
       this._mode = EditMode.Pan;
       this._board.setMode(EditMode.Pan);
@@ -344,21 +368,21 @@ class Clay extends Base {
     } else if (this._selected) {
       switch(e.keyCode) {
         case KeyCode.Delete://Delete
-            this._palettes.forEach(_ => _.hide());
+            this._palettes.forEach((_: ColorPalette) => _.hide());
             this._selected.forEach(_ => this._board.delete(_));
             this._selected = [];
             this.menuCalibration();
           break;
         default:
           if (this._selected.length === 1) {
-            this._selected.makeDefaultTextEditable();
+            this._selected.forEach((_: Node) => _.makeDefaultTextEditable());
           }
           break;
       }
     }
   }
 
-  onKeyUp(e) {
+  onKeyUp(e: any): void {
     switch(e.keyCode) {
       case KeyCode.SpaceBar://Space
         this._mode = EditMode.None;
@@ -367,8 +391,8 @@ class Clay extends Base {
     }
   }
 
-  onMenuBtnClick(mode, svg, cursor='crosshair') {
-    return function() {
+  onMenuBtnClick(mode: number, svg: any, cursor: string = 'crosshair') {
+    return function(): void {
       if (this._mode !== mode) {
         //if there is a previous selection, cancel it
         if (this._selectedSvg) {
@@ -392,28 +416,28 @@ class Clay extends Base {
     }
   }
 
-  onSelection(items) {
+  onSelection(items: Node[]): void {
     this._selected = items;
   
     //configure menu related to selection
     this.menuCalibration();
   }
 
-  save() {
+  save(): BoardConfig {
     return this._config;
   }
   
-  subscribe(evt, callback) {
+  subscribe(evt: any, callback: (evt: any) => void): void {
     this.on(evt, callback);
   }
 
-  drawEditMenu(doc, parent, config) {
+  drawEditMenu(doc: any, parent: any, config: BoardConfig) {
     const { 
       width,  
       editable, zoomable, colorize, exportable, executable,
     } = config;
-    let svg;
-    let div = doc.createElement('div');
+    let svg: any;
+    let div: any = doc.createElement('div');
     div.setAttribute('style', `height:28px;width:${width-1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
   
     //LINK BUTTON
@@ -440,10 +464,10 @@ class Clay extends Base {
         svg: LINK_SVG, 
         cancelSvg: CANCEL_SVG, 
         tooltip: 'New link', 
-        execFn: () => {
+        execFn: (evt: any) => {
           this._board.enterLinkMode(this._ActionFunctions.onExecCompleteFn);
         },
-        cancelFn: () => {
+        cancelFn: (evt: any) => {
           this._board.exitLinkMode();
         }
       });
@@ -460,9 +484,8 @@ class Clay extends Base {
         doc: doc, 
         svg: UNDO_SVG,
         tooltip: 'Undo', 
-        onClick: () => {},
         enable: false,
-        onClick: () => {
+        onClick: (evt: any) => {
           this._redoStates.push([this._selected, this._board.exportState()]);
           const [selected, state] = this._undoStates.pop();
           this.menuCalibration();
@@ -534,7 +557,7 @@ class Clay extends Base {
         execFn: () => {
           this._board.enterZoomMode(ZoomMode.ZoomIn);
         },
-        cancelFn: () => {
+        cancelFn: (evt: any) => {
           this._board.exitZoomMode();
         }
       });
@@ -551,7 +574,7 @@ class Clay extends Base {
         execFn: () => {
           this._board.enterZoomMode(ZoomMode.ZoomOut);
         },
-        cancelFn: () => {
+        cancelFn: (evt: any) => {
           this._board.exitZoomMode();
         }
       });
@@ -559,7 +582,7 @@ class Clay extends Base {
       this._buttons.zoomOut = zoomOutBtn; 
       div.appendChild(zoomOutBtn);
 
-      const zoomLvl = this.createZoomLevelElement(doc, this._board);
+      const zoomLvl = this.createZoomLevelElement(doc);
       div.appendChild(zoomLvl);
 
   
@@ -573,7 +596,7 @@ class Clay extends Base {
         doc: doc, 
         svg: FILL_SVG,
         tooltip: 'Fill Color', 
-        onClick: () => {},
+        onClick: (evt: any) => {},
       });
       this._buttons.fill = fillBtn; 
       div.appendChild(fillBtn);
@@ -586,10 +609,10 @@ class Clay extends Base {
 
       fillBtn.onclick = ((svg, cp) => () => {
         if (svg._enable) {
-          this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
+          this._palettes.filter((_: ColorPalette) => _!== cp).forEach((_: ColorPalette) => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
-              this._selected.setFillColor(color);
+              this._selected.forEach((_: Node) => _.setFillColor(color));
             });
           }
         }
@@ -601,7 +624,7 @@ class Clay extends Base {
         svg: FONTCOLOR_SVG,
         tooltip: 'Text Color', 
         enable: false,
-        onClick: () => {},
+        onClick: (evt: any) => {},
       });
 
       this._buttons.fontfill = textColorBtn;
@@ -613,10 +636,10 @@ class Clay extends Base {
 
       textColorBtn.onclick = ((svg, cp) => () => {
         if (svg._enable) {
-          this._palettes.filter(_ => _!== cp).forEach(_ => _.hide());
+          this._palettes.filter((_: ColorPalette) => _!== cp).forEach((_: ColorPalette) => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
-              this._selected.setFontColor(color);
+              this._selected.forEach((_: Node) => _.setFontColor(color));
             });
           }
         }
@@ -635,7 +658,7 @@ class Clay extends Base {
         svg: EXPORT_SVG,
         cancelSvg: CANCEL_SVG,
         tooltip: 'Export', 
-        onClick: () => {
+        onClick: (evt: any) => {
           this.trigger('export', this._board.exportState());
         },
       });
@@ -654,7 +677,7 @@ class Clay extends Base {
         svg: PLAY_SVG,
         cancelSvg: PAUSE_SVG,
         tooltip: 'Play', 
-        onClick: () => {},
+        onClick: (evt: any) => {},
       });
 
       this._buttons.play = playBtn;
@@ -664,7 +687,7 @@ class Clay extends Base {
         doc: doc, 
         svg: STOP_SVG,
         tooltip: 'Stop', 
-        onClick: () => {},
+        onClick: (evt: any) => {},
       });
 
       this._buttons.stop = stopBtn;
@@ -678,13 +701,13 @@ class Clay extends Base {
     parent.appendChild(div);
   }
 
-  resetMenuBtns() {
+  resetMenuBtns(): void {
     //reset mode
     this._mode = EditMode.None;
   
     //revert all buttons back to original svg state
-    let buttons = this._buttons;
-    Object.keys(buttons).forEach(key => {
+    let buttons: M = this._buttons;
+    Object.keys(buttons).forEach((key: keyof M) => {
       buttons[key].innerHTML = buttons[key]._svg;
     });
   
