@@ -1,9 +1,9 @@
 //#region Imports
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 import Board from 'displays/board';
 import Node from 'displays/node';
 import Button from 'menu/button';
-import ColorPalette from 'displays/colorpalette';
+import ColorPalette from 'menu/colorpalette';
 import {
   CancelInRed as CANCEL_SVG,
   ArrowForward as LINK_SVG,
@@ -12,7 +12,7 @@ import {
   ZoomIn as ZOOM_IN_SVG, ZoomOut as ZOOM_OUT_SVG,
   FormatColorFill as FILL_SVG, FormatColorText as FONTCOLOR_SVG,
   Play as PLAY_SVG, Pause as PAUSE_SVG, Stop as STOP_SVG
-} from 'displays/svg';
+} from 'constants/svg';
 
 import { default as config } from 'constants/config';
 const {
@@ -56,7 +56,7 @@ class Clay extends Base {
   private _undoStates: any[];
   private _redoStates: any[];
   private _selected: Node[];
-  private _selectedSvg: HTMLElement;
+  private _selectedBtn: Button;
 
   private menuCalibration: ()=>void;
 
@@ -351,32 +351,28 @@ class Clay extends Base {
     }
   }
 
-  onMenuBtnClick(mode: number, svg: any, cursor: string = 'crosshair') {
+  onMenuBtnClick(mode: number, btn: Button, cursor: string = 'crosshair') {
     return function(): void {
       if (this._mode !== mode) {
         //if there is a previous selection, cancel it
-        if (this._selectedSvg) {
-          this._selectedSvg.innerHTML = this._selectedSvg._svg;
-          this._selectedSvg.cancelFn();
+        if (this._selectedBtn) {
+          this._selectedBtn.toDefaultView();
+          this._selectedBtn.cancelFn();
         } 
   
         //selection or switch mode
         this._mode = mode;
-        if (svg.toCancelView){
-          svg.toCancelView();
-        } else {
-          svg.innerHTML = svg._cancel;
-        }
+        btn.toCancelView();
         
-        this._selectedSvg = svg;
+        this._selectedBtn = btn;
         this._board.elem.style.cursor = cursor;
   
-        svg.execFn();
+        btn.execFn();
       } else {
         //cancellation
         this.resetMenuBtns();
   
-        svg.cancelFn();
+        btn.cancelFn();
       }
     }
   }
@@ -429,10 +425,10 @@ class Clay extends Base {
         svg: LINK_SVG, 
         cancelSvg: CANCEL_SVG, 
         tooltip: 'New link', 
-        execFn: (evt: any) => {
+        execFn: () => {
           this._board.enterLinkMode(this._ActionFunctions.onExecCompleteFn);
         },
-        cancelFn: (evt: any) => {
+        cancelFn: () => {
           this._board.exitLinkMode();
         }
       });
@@ -522,7 +518,7 @@ class Clay extends Base {
         execFn: () => {
           this._board.enterZoomMode(ZoomMode.ZoomIn);
         },
-        cancelFn: (evt: any) => {
+        cancelFn: () => {
           this._board.exitZoomMode();
         }
       });
@@ -539,7 +535,7 @@ class Clay extends Base {
         execFn: () => {
           this._board.enterZoomMode(ZoomMode.ZoomOut);
         },
-        cancelFn: (evt: any) => {
+        cancelFn: () => {
           this._board.exitZoomMode();
         }
       });
@@ -684,7 +680,7 @@ class Clay extends Base {
     this._board.elem.style.cursor = 'default';
   
     //clear selected svg
-    this._selectedSvg = undefined;
+    this._selectedBtn = undefined;
   }
 }
 

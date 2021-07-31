@@ -1,15 +1,15 @@
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 
 type ButtonOptions = {
   doc: any, svg: string, tooltip: string, 
-  onClick?: (evt: MouseEvent)=>void, execFn?: (evt: any)=>void, cancelFn?: (evt: any)=>void, 
+  onClick?: (evt: MouseEvent)=>void, execFn?: ()=>void, cancelFn?: ()=>void, 
   cancelSvg?: string, enable?: boolean
 };
 
 export default class Button extends Base {
   private _enable: boolean;
-  private execFn: (evt: MouseEvent)=>void;
-  private cancelFn: (evt: MouseEvent)=>void;
+  public execFn: ()=>void;
+  public cancelFn: ()=>void;
 
   constructor(opts: ButtonOptions) {
     super();

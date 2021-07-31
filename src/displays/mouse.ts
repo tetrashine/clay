@@ -1,4 +1,4 @@
-import Evented from 'displays/evented';
+import Evented from 'displays/abstract/evented';
 import Link from 'displays/link';
 
 import { Point, NodePoint, Offset } from 'types/index';

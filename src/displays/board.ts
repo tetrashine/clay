@@ -1,6 +1,7 @@
+import Base from 'displays/abstract/base';
+
 import Node from 'displays/node';
 import Link from 'displays/link';
-import Base from 'displays/base';
 import Mouse from 'displays/mouse';
 
 import {EditMode} from 'constants/editmode';

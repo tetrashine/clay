@@ -1,4 +1,4 @@
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 import SelectableHOC from 'composite/selectable';
 
 import { Point } from 'types/index';
@@ -10,7 +10,7 @@ const getCoordsFromEvent = (ev: any) => {
   return { x: ev.clientX, y: ev.clientY }
 }
 
-class Draggable extends Base {
+abstract class Draggable extends Base {
   private _x: number;
   private _y: number;
   private _enabled: boolean;

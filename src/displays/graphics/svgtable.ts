@@ -1,4 +1,4 @@
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 
 class SvgTable extends Base {
 

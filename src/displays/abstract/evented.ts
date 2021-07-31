@@ -1,7 +1,7 @@
 
 type GenericFunction = (...args: any[]) => void;
 
-class Evented {
+abstract class Evented {
   private _events: { [key: string]: GenericFunction[] };
 
   constructor() {

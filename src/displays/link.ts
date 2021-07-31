@@ -1,4 +1,4 @@
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 import SelectableHOC from 'composite/selectable';
 
 import { default as config } from 'constants/config';

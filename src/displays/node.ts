@@ -1,11 +1,11 @@
-import Draggable from 'displays/draggable';
-import {ArrowDown, ArrowUp, Add, Delete} from 'displays/svg';
+import Draggable from 'displays/abstract/draggable';
 import SvgTable from 'displays/graphics/svgtable';
 import Link from 'displays/link';
 
 import { Point, NodePoint, NodeConfig, NodeAttribute } from 'types/index';
 import INode from 'interfaces/inode';
 
+import {ArrowDown, ArrowUp, Add, Delete} from 'constants/svg';
 import { default as config } from 'constants/config';
 const {
   NODE_WIDTH, NODE_HEIGHT, NODE_COLOR, NODE_DISABLED_COLOR, NODE_BORDER_COLOR, NODE_TEXT_COLOR,  

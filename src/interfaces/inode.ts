@@ -1,6 +1,6 @@
 type Link = any;
 
-import Base from 'displays/base';
+import Base from 'displays/abstract/base';
 import SelectableHOC from 'composite/selectable';
 import { NodePoint, Point } from 'types/index';
 

@@ -1,7 +1,7 @@
 
-import Evented from 'displays/evented';
+import Evented from 'displays/abstract/evented';
 
-class Base extends Evented {
+abstract class Base extends Evented {
   private _sel: any;
 
   appendChild(node: any): void {
