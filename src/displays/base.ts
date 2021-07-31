@@ -26,7 +26,7 @@ class Base extends Evented {
     this.elem.setAttribute(key, value);
   }
 
-  createDomElement(doc: any, type: string, text: string, cancel:string = '') {
+  createDomElement(doc: any, type: string, text: string, cancel:string = ''): HTMLElement {
     let func: any = (['svg', 'g', 'text', 'rect', 'foreignobject'].indexOf(type.toLowerCase()) >= 0) ? this.createSvgElement : this.createNonSvgElement;
     let elem: any = func.call(this, doc, type);
     elem.innerHTML = text;
@@ -35,11 +35,11 @@ class Base extends Evented {
     return elem;
   }
 
-  createNonSvgElement(doc: any, type: string): void {
+  createNonSvgElement(doc: any, type: string): HTMLElement {
     return doc.createElement(type);
   }
 
-  createSvgElement(doc: any, type: string): void {
+  createSvgElement(doc: any, type: string): HTMLElement {
     return doc.createElementNS("http://www.w3.org/2000/svg", type);
   }
 

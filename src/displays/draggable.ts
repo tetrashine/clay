@@ -57,7 +57,7 @@ class Draggable extends Base {
     this.stopListening();
   }
 
-  startDrag(evt: any): void {
+  startDrag(evt: MouseEvent): void {
 
     // Prevent browser drag behavior as soon as possible
     evt.preventDefault()
@@ -82,7 +82,7 @@ class Draggable extends Base {
     window.addEventListener('touchend', this.endDragFn, { passive: false })
   }
 
-  drag(evt: any): void {
+  drag(evt: MouseEvent): void {
     this._dragged = true;
     const offset = this._offset;
     const coord = getCoordsFromEvent(evt);

@@ -6,9 +6,9 @@ declare class Base extends Evented {
     removeChild(node: any): void;
     removeChildByElement(elem: any): void;
     setAttribute(key: string, value: any): void;
-    createDomElement(doc: any, type: string, text: string, cancel?: string): any;
-    createNonSvgElement(doc: any, type: string): void;
-    createSvgElement(doc: any, type: string): void;
+    createDomElement(doc: any, type: string, text: string, cancel?: string): HTMLElement;
+    createNonSvgElement(doc: any, type: string): HTMLElement;
+    createSvgElement(doc: any, type: string): HTMLElement;
     remove(): void;
     get elem(): any;
     set elem(elem: any);

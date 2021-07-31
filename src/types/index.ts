@@ -44,8 +44,6 @@ type BoardState = {
   editable?: boolean
 };
 
-
-
 type LinkState = {
   type: string,
   dotted: boolean,

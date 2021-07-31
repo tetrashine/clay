@@ -2,6 +2,7 @@
 import Base from 'displays/base';
 import Board from 'displays/board';
 import Node from 'displays/node';
+import Button from 'menu/button';
 import ColorPalette from 'displays/colorpalette';
 import {
   CancelInRed as CANCEL_SVG,
@@ -42,8 +43,8 @@ type M = { [key:string]: any; };
 
 class Clay extends Base {
 
-  private _dom: any;
-  private _menu: any;
+  private _dom: HTMLElement;
+  private _menu: HTMLElement;
   private _board: Board;
   private _mode: number;
   private _config: BoardConfig;
@@ -55,7 +56,7 @@ class Clay extends Base {
   private _undoStates: any[];
   private _redoStates: any[];
   private _selected: Node[];
-  private _selectedSvg: any;
+  private _selectedSvg: HTMLElement;
 
   private menuCalibration: ()=>void;
 
@@ -139,7 +140,7 @@ class Clay extends Base {
     return this._load(this._dom, config, state);
   }
 
-  generate(doc: any, dom: any, config: BoardConfig, state: BoardState): Board {
+  generate(doc: any, dom: HTMLElement, config: BoardConfig, state: BoardState): Board {
     const {width, height, zoom, editable} = config;
     let board = new Board(doc, dom, width, height, zoom, editable);
     board.load(state);
@@ -232,11 +233,11 @@ class Clay extends Base {
     return this._load(this._dom, config, state);
   }
 
-  _load(dom: any, config: BoardConfig, state: BoardState): [any, any, Board] {
+  _load(dom: HTMLElement, config: BoardConfig, state: BoardState): [HTMLElement, HTMLElement, Board] {
     const {editable} = config;
 
-    let menu = editable && this.drawEditMenu(document, dom, config);
-    let board = this.generate(document, dom, config, state);
+    let menu: HTMLElement = editable && this.drawEditMenu(document, dom, config);
+    let board: Board = this.generate(document, dom, config, state);
   
     if (editable) {
       board.on('onselect', this.onSelection.bind(this));
@@ -258,8 +259,8 @@ class Clay extends Base {
     zoomPercent.setAttribute('style', 'position: absolute;right:4px;margin-top:3px;')
     zoomInput.setAttribute('value', '100')
     zoomInput.setAttribute('style', 'color:#333;width:25px;border:none;')
-    zoomInput.onchange = (evt: any) => {
-      const scale = parseFloat(evt.target.value);
+    zoomInput.onchange = (evt: Event) => {
+      const scale = parseFloat((evt.target as HTMLInputElement).value);
       this._board.zoom(scale / 100);
     }
     zoomDiv.appendChild(zoomPercent);
@@ -267,7 +268,7 @@ class Clay extends Base {
     return zoomDiv;
   }
 
-  createHrElement(doc: any): any {
+  createHrElement(doc: any): HTMLElement {
     let hr = this.createDomElement(doc, 'span', '|', '');
     hr.setAttribute('style', 'color:#bbb;display:table-cell;width:1px;vertical-align:middle;')
     return hr;
@@ -277,47 +278,6 @@ class Clay extends Base {
     let ele = this.createDomElement(doc, 'div', icon, cancel);
     ele.setAttribute('class', 'clay-mb e');
     return ele;
-  }
-
-  createMenuBtnElement({
-    doc, svg, tooltip,
-    onClick, execFn, cancelFn, cancelSvg='',
-    enable=true,
-  }: {
-    doc: any, svg: any, tooltip: string,
-    onClick?: (evt: any)=>void, execFn?: (evt: any)=>void, cancelFn?: (evt: any)=>void, 
-    cancelSvg?: string,
-    enable?: boolean
-  }) {
-    const menuElem = this.createMenuElement(doc, svg, cancelSvg);
-    const tooltipElem = this.createDomElement(doc, 'span', tooltip);
-    tooltipElem.setAttribute('class', 'tooltiptext');
-    menuElem.appendChild(tooltipElem);
-    menuElem._svg = menuElem.innerHTML;
-
-    Object.entries({
-      'onclick': onClick,
-      'execFn': execFn,
-      'cancelFn': cancelFn
-    }).forEach(([name, fn]) => {
-      if (fn) {
-        menuElem[name] = fn;
-      }
-    });
-
-    !enable && this.disableMenuBtn(menuElem);
-    
-    return menuElem;
-  }
-
-  enableMenuBtn(btn: any): void { 
-    btn._enable = true;
-    btn.setAttribute('class', 'clay-mb e');
-  }
-
-  disableMenuBtn(btn: any): void {
-    btn._enable = false;
-    btn.setAttribute('class', 'clay-mb s');
   }
 
   applyDefault(config: BoardConfig): BoardConfig {
@@ -345,22 +305,22 @@ class Clay extends Base {
       ].forEach(([_, doable]: (keyof BoardConfig)[]) => {
         if (config[doable]) {
           (this._selected && this._selected.length > 0) 
-            ? this.enableMenuBtn(this._buttons[_]) 
-            : this.disableMenuBtn(this._buttons[_])
+            ? this._buttons[_].enable()
+            : this._buttons[_].disable();
         }
       });
 
       this._undoStates && this._undoStates.length > 0
-        ? this.enableMenuBtn(this._buttons.undo) 
-        : this.disableMenuBtn(this._buttons.undo)
+        ? this._buttons.undo.enable()
+        : this._buttons.undo.disable();
 
       this._redoStates && this._redoStates.length > 0
-        ? this.enableMenuBtn(this._buttons.redo) 
-        : this.disableMenuBtn(this._buttons.redo)
+        ? this._buttons.redo.enable()
+        : this._buttons.redo.disable();
     }
   }
 
-  onKeyDown(e: any): void {
+  onKeyDown(e: KeyboardEvent): void {
     if (e.keyCode === KeyCode.SpaceBar) {
       this._mode = EditMode.Pan;
       this._board.setMode(EditMode.Pan);
@@ -382,7 +342,7 @@ class Clay extends Base {
     }
   }
 
-  onKeyUp(e: any): void {
+  onKeyUp(e: KeyboardEvent): void {
     switch(e.keyCode) {
       case KeyCode.SpaceBar://Space
         this._mode = EditMode.None;
@@ -402,7 +362,12 @@ class Clay extends Base {
   
         //selection or switch mode
         this._mode = mode;
-        svg.innerHTML = svg._cancel;
+        if (svg.toCancelView){
+          svg.toCancelView();
+        } else {
+          svg.innerHTML = svg._cancel;
+        }
+        
         this._selectedSvg = svg;
         this._board.elem.style.cursor = cursor;
   
@@ -427,23 +392,23 @@ class Clay extends Base {
     return this._config;
   }
   
-  subscribe(evt: any, callback: (evt: any) => void): void {
+  subscribe(evt: string, callback: (evt: any) => void): void {
     this.on(evt, callback);
   }
 
-  drawEditMenu(doc: any, parent: any, config: BoardConfig) {
+  drawEditMenu(doc: any, parent: HTMLElement, config: BoardConfig): HTMLElement {
     const { 
       width,  
       editable, zoomable, colorize, exportable, executable,
     } = config;
-    let svg: any;
-    let div: any = doc.createElement('div');
+    let svg: HTMLElement;
+    let div: HTMLElement = doc.createElement('div');
     div.setAttribute('style', `height:28px;width:${width-1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
   
     //LINK BUTTON
     if (editable) {
       //NODE BUTTON
-      const nodeBtn = this.createMenuBtnElement({
+      const nodeBtn: Button = new Button({
         doc: doc, 
         svg: NODE_SVG, 
         cancelSvg: CANCEL_SVG, 
@@ -455,11 +420,11 @@ class Clay extends Base {
           this._board.exitNodeMode();
         }
       });
-      nodeBtn.onclick = this.onMenuBtnClick(EditMode.Node, nodeBtn).bind(this); 
+      nodeBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, nodeBtn).bind(this));
       this._buttons.node = nodeBtn;
-      div.appendChild(nodeBtn);
+      div.appendChild(nodeBtn.elem);
 
-      const linkBtn = this.createMenuBtnElement({
+      const linkBtn: Button = new Button({
         doc: doc, 
         svg: LINK_SVG, 
         cancelSvg: CANCEL_SVG, 
@@ -471,21 +436,21 @@ class Clay extends Base {
           this._board.exitLinkMode();
         }
       });
-      linkBtn.onclick = this.onMenuBtnClick(EditMode.Link, linkBtn).bind(this); 
+      linkBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, linkBtn).bind(this));
       this._buttons.links = linkBtn;
-      div.appendChild(linkBtn);
+      div.appendChild(linkBtn.elem);
     
       //Breakline
       svg = this.createHrElement(doc);
       div.appendChild(svg);
     
       //UNDO
-      const undoBtn = this.createMenuBtnElement({
+      const undoBtn: Button = new Button({
         doc: doc, 
         svg: UNDO_SVG,
         tooltip: 'Undo', 
         enable: false,
-        onClick: (evt: any) => {
+        onClick: (evt: MouseEvent) => {
           this._redoStates.push([this._selected, this._board.exportState()]);
           const [selected, state] = this._undoStates.pop();
           this.menuCalibration();
@@ -495,10 +460,10 @@ class Clay extends Base {
         },
       });
       this._buttons.undo = undoBtn;
-      div.appendChild(undoBtn);
+      div.appendChild(undoBtn.elem);
       
       //REDO
-      const redoBtn = this.createMenuBtnElement({
+      const redoBtn: Button = new Button({
         doc: doc, 
         svg: REDO_SVG,
         tooltip: 'Redo', 
@@ -513,14 +478,14 @@ class Clay extends Base {
         enable: false
       });
       this._buttons.redo = redoBtn;
-      div.appendChild(redoBtn);
+      div.appendChild(redoBtn.elem);
     
       //Breakline
       svg = this.createHrElement(doc);
       div.appendChild(svg);
     
       //UNSELECT BUTTON
-      const unselectBtn = this.createMenuBtnElement({
+      const unselectBtn: Button = new Button({
         doc: doc, 
         svg: UNSELECT_SVG,
         cancelSvg: CANCEL_SVG,
@@ -529,10 +494,10 @@ class Clay extends Base {
         onClick: this._ActionFunctions.unselectFn
       });
       this._buttons.unselect = unselectBtn; 
-      div.appendChild(unselectBtn);
+      div.appendChild(unselectBtn.elem);
     
       //DELETE
-      const deleteBtn = this.createMenuBtnElement({
+      const deleteBtn: Button = new Button({
         doc: doc, 
         svg: DELETE_SVG,
         cancelSvg: CANCEL_SVG,
@@ -541,7 +506,7 @@ class Clay extends Base {
         onClick: this._ActionFunctions.deleteSelectedFn
       });
       this._buttons.delete = deleteBtn; 
-      div.appendChild(deleteBtn);
+      div.appendChild(deleteBtn.elem);
   
       //Breakline
       div.appendChild(this.createHrElement(doc));
@@ -549,7 +514,7 @@ class Clay extends Base {
 
     //ZOOM IN
     if (zoomable) {
-      const zoomInBtn = this.createMenuBtnElement({
+      const zoomInBtn: Button = new Button({
         doc: doc, 
         svg: ZOOM_IN_SVG,
         cancelSvg: CANCEL_SVG,
@@ -561,16 +526,16 @@ class Clay extends Base {
           this._board.exitZoomMode();
         }
       });
-      zoomInBtn.onclick = this.onMenuBtnClick(EditMode.ZoomIn, zoomInBtn).bind(this); 
+      zoomInBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, zoomInBtn).bind(this));
       this._buttons.zoomIn = zoomInBtn; 
-      div.appendChild(zoomInBtn);
+      div.appendChild(zoomInBtn.elem);
   
       //ZOOM OUT
-      const zoomOutBtn = this.createMenuBtnElement({
+      const zoomOutBtn: Button = new Button({
         doc: doc, 
         svg: ZOOM_OUT_SVG,
         cancelSvg: CANCEL_SVG,
-        tooltip: 'Zoom In', 
+        tooltip: 'Zoom Out', 
         execFn: () => {
           this._board.enterZoomMode(ZoomMode.ZoomOut);
         },
@@ -578,13 +543,12 @@ class Clay extends Base {
           this._board.exitZoomMode();
         }
       });
-      zoomOutBtn.onclick = this.onMenuBtnClick(EditMode.ZoomOut, zoomOutBtn).bind(this); 
+      zoomOutBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomOut, zoomOutBtn).bind(this));
       this._buttons.zoomOut = zoomOutBtn; 
-      div.appendChild(zoomOutBtn);
+      div.appendChild(zoomOutBtn.elem);
 
       const zoomLvl = this.createZoomLevelElement(doc);
       div.appendChild(zoomLvl);
-
   
       //Breakline
       div.appendChild(this.createHrElement(doc)); 
@@ -592,23 +556,23 @@ class Clay extends Base {
 
     if (colorize) {
       //FILL BUTTON
-      const fillBtn = this.createMenuBtnElement({
+      const fillBtn: Button = new Button({
         doc: doc, 
         svg: FILL_SVG,
         tooltip: 'Fill Color', 
-        onClick: (evt: any) => {},
+        onClick: (evt: MouseEvent) => {},
+        enable: false,
       });
       this._buttons.fill = fillBtn; 
-      div.appendChild(fillBtn);
-      this.disableMenuBtn(fillBtn);
+      div.appendChild(fillBtn.elem);
 
       //color palette
       let cp1 = new ColorPalette(doc);
-      fillBtn.appendChildByElement(cp1);
+      fillBtn.appendChild(cp1);
       this._palettes.push(cp1);
 
-      fillBtn.onclick = ((svg, cp) => () => {
-        if (svg._enable) {
+      fillBtn.registerEvt('onclick', ((svg, cp) => () => {
+        if (svg.isEnable()) {
           this._palettes.filter((_: ColorPalette) => _!== cp).forEach((_: ColorPalette) => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
@@ -616,26 +580,25 @@ class Clay extends Base {
             });
           }
         }
-      })(fillBtn, cp1);
+      })(fillBtn, cp1));
 
       //FONTCOLOR BUTTON
-      const textColorBtn = this.createMenuBtnElement({
+      const textColorBtn: Button = new Button({
         doc: doc, 
         svg: FONTCOLOR_SVG,
         tooltip: 'Text Color', 
         enable: false,
-        onClick: (evt: any) => {},
+        onClick: (evt: MouseEvent) => {},
       });
-
       this._buttons.fontfill = textColorBtn;
 
       //color palette
       let cp2 = new ColorPalette(doc);
-      textColorBtn.appendChildByElement(cp2);
+      textColorBtn.appendChild(cp2);
       this._palettes.push(cp2);
 
-      textColorBtn.onclick = ((svg, cp) => () => {
-        if (svg._enable) {
+      textColorBtn.registerEvt('onclick', ((svg, cp) => () => {
+        if (svg.isEnable()) {
           this._palettes.filter((_: ColorPalette) => _!== cp).forEach((_: ColorPalette) => _.hide());
           if (cp.toggle()) {
             cp.once('palette-select', (color) => {
@@ -643,9 +606,8 @@ class Clay extends Base {
             });
           }
         }
-      })(textColorBtn, cp2);
-
-      div.appendChild(textColorBtn);    
+      })(textColorBtn, cp2));
+      div.appendChild(textColorBtn.elem);
     
       //Breakline
       div.appendChild(this.createHrElement(doc));
@@ -653,18 +615,18 @@ class Clay extends Base {
   
     //EXPORT BUTTON
     if (exportable) {
-      const exportBtn = this.createMenuBtnElement({
+      const exportBtn: Button = new Button({
         doc: doc, 
         svg: EXPORT_SVG,
         cancelSvg: CANCEL_SVG,
         tooltip: 'Export', 
-        onClick: (evt: any) => {
+        onClick: (evt: MouseEvent) => {
           this.trigger('export', this._board.exportState());
         },
       });
 
       this._buttons.export = exportBtn;
-      div.appendChild(exportBtn);
+      div.appendChild(exportBtn.elem);
 
       //Breakline
       div.appendChild(this.createHrElement(doc));
@@ -672,33 +634,35 @@ class Clay extends Base {
 
     //EXPORT BUTTON
     if (executable) {
-      const playBtn = this.createMenuBtnElement({
+      const playBtn: Button = new Button({
         doc: doc, 
         svg: PLAY_SVG,
         cancelSvg: PAUSE_SVG,
         tooltip: 'Play', 
-        onClick: (evt: any) => {},
+        onClick: (evt: MouseEvent) => {},
       });
 
       this._buttons.play = playBtn;
-      div.appendChild(playBtn);
+      div.appendChild(playBtn.elem);
 
-      const stopBtn = this.createMenuBtnElement({
+      const stopBtn: Button = new Button({
         doc: doc, 
         svg: STOP_SVG,
         tooltip: 'Stop', 
-        onClick: (evt: any) => {},
+        onClick: (evt: MouseEvent) => {},
       });
 
       this._buttons.stop = stopBtn;
-      div.appendChild(stopBtn);
+      div.appendChild(stopBtn.elem);
     }
         
-    svg = this.createMenuElement(doc, '', '');
+    svg = this.createDomElement(doc, 'div', '');
     svg.setAttribute('class', '');
     div.appendChild(svg);
     
     parent.appendChild(div);
+
+    return div;
   }
 
   resetMenuBtns(): void {
@@ -708,7 +672,12 @@ class Clay extends Base {
     //revert all buttons back to original svg state
     let buttons: M = this._buttons;
     Object.keys(buttons).forEach((key: keyof M) => {
-      buttons[key].innerHTML = buttons[key]._svg;
+      if (buttons[key].toDefaultView) {
+        buttons[key].toDefaultView();
+      } else {
+        buttons[key].innerHTML = buttons[key]._svg;
+      }
+      
     });
   
     //reset cursor state

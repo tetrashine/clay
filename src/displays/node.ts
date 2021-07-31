@@ -1,6 +1,7 @@
 import Draggable from 'displays/draggable';
 import {ArrowDown, ArrowUp, Add, Delete} from 'displays/svg';
 import SvgTable from 'displays/graphics/svgtable';
+import Link from 'displays/link';
 
 import { Point, NodePoint, NodeConfig, NodeAttribute } from 'types/index';
 import INode from 'interfaces/inode';
@@ -11,8 +12,6 @@ const {
   NODE_STROKE_WEIGHT, NODE_PADDING, NODE_IO_SIZE, NODE_IO_SPACING,
   NODE_CONNECTOR_BORDER_COLOR, NODE_IO_HOVER_COLOR, NODE_IO_CONNECTOR_COLOR, BORDER_WIDTH,
 } = config;
-
-type Link = any;
 
 class Node extends Draggable implements INode  {
   private _doc: any;
@@ -226,7 +225,7 @@ class Node extends Draggable implements INode  {
 
     gDom.appendChild(foreignObject);
     gDom.appendChild(arrowIcon);
-    gDom.addEventListener('mousedown', (evt: any) => {
+    gDom.addEventListener('mousedown', (evt: MouseEvent) => {
       evt.stopImmediatePropagation();
       this._menuState = !this._menuState;
       this.redrawMenu(this._menuState);
@@ -454,7 +453,7 @@ class Node extends Draggable implements INode  {
         this.startListening()
       };
     } else {
-      this._selectedText.onchange = (evt: any): void => {
+      this._selectedText.onchange = (evt: MouseEvent): void => {
         const input: any = evt.target
         const key: string = input.attributes.key.value;
         const index: number = input.attributes.index.value;

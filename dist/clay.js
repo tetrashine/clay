@@ -210,32 +210,6 @@ class Clay extends base_1.default {
         ele.setAttribute('class', 'clay-mb e');
         return ele;
     }
-    createMenuBtnElement({ doc, svg, tooltip, onClick, execFn, cancelFn, cancelSvg = '', enable = true, }) {
-        const menuElem = this.createMenuElement(doc, svg, cancelSvg);
-        const tooltipElem = this.createDomElement(doc, 'span', tooltip);
-        tooltipElem.setAttribute('class', 'tooltiptext');
-        menuElem.appendChild(tooltipElem);
-        menuElem._svg = menuElem.innerHTML;
-        Object.entries({
-            'onclick': onClick,
-            'execFn': execFn,
-            'cancelFn': cancelFn
-        }).forEach(([name, fn]) => {
-            if (fn) {
-                menuElem[name] = fn;
-            }
-        });
-        !enable && this.disableMenuBtn(menuElem);
-        return menuElem;
-    }
-    enableMenuBtn(btn) {
-        btn._enable = true;
-        btn.setAttribute('class', 'clay-mb e');
-    }
-    disableMenuBtn(btn) {
-        btn._enable = false;
-        btn.setAttribute('class', 'clay-mb s');
-    }
     applyDefault(config) {
         return Object.assign({
             editable: true,
@@ -256,16 +230,16 @@ class Clay extends base_1.default {
             ].forEach(([_, doable]) => {
                 if (config[doable]) {
                     (this._selected && this._selected.length > 0)
-                        ? this.enableMenuBtn(this._buttons[_])
-                        : this.disableMenuBtn(this._buttons[_]);
+                        ? this._buttons[_].enable()
+                        : this._buttons[_].disable();
                 }
             });
             this._undoStates && this._undoStates.length > 0
-                ? this.enableMenuBtn(this._buttons.undo)
-                : this.disableMenuBtn(this._buttons.undo);
+                ? this._buttons.undo.enable()
+                : this._buttons.undo.disable();
             this._redoStates && this._redoStates.length > 0
-                ? this.enableMenuBtn(this._buttons.redo)
-                : this.disableMenuBtn(this._buttons.redo);
+                ? this._buttons.redo.enable()
+                : this._buttons.redo.disable();
         };
     }
     onKeyDown(e) {
@@ -305,7 +279,12 @@ class Clay extends base_1.default {
                     this._selectedSvg.cancelFn();
                 }
                 this._mode = mode;
-                svg.innerHTML = svg._cancel;
+                if (svg.toCancelView) {
+                    svg.toCancelView();
+                }
+                else {
+                    svg.innerHTML = svg._cancel;
+                }
                 this._selectedSvg = svg;
                 this._board.elem.style.cursor = cursor;
                 svg.execFn();
@@ -332,7 +311,7 @@ class Clay extends base_1.default {
         let div = doc.createElement('div');
         div.setAttribute('style', `height:28px;width:${width - 1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
         if (editable) {
-            const nodeBtn = this.createMenuBtnElement({
+            const nodeBtn = new button_1.default({
                 doc: doc,
                 svg: NODE_SVG,
                 cancelSvg: svg_1.CancelInRed,
@@ -344,10 +323,10 @@ class Clay extends base_1.default {
                     this._board.exitNodeMode();
                 }
             });
-            nodeBtn.onclick = this.onMenuBtnClick(editmode_1.EditMode.Node, nodeBtn).bind(this);
+            nodeBtn.registerEvt('onclick', this.onMenuBtnClick(editmode_1.EditMode.ZoomIn, nodeBtn).bind(this));
             this._buttons.node = nodeBtn;
-            div.appendChild(nodeBtn);
-            const linkBtn = this.createMenuBtnElement({
+            div.appendChild(nodeBtn.elem);
+            const linkBtn = new button_1.default({
                 doc: doc,
                 svg: svg_1.ArrowForward,
                 cancelSvg: svg_1.CancelInRed,

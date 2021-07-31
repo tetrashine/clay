@@ -184,14 +184,14 @@ class Board extends Base {
     var origin:Point = undefined;
 
     //board drag
-    this.elem.addEventListener('mousedown', (evt: any) => {
+    this.elem.addEventListener('mousedown', (evt: MouseEvent) => {
       if (evt.which === 1) {//left click
         origin = getCoordsFromEvent(evt, this.elem);
         this.elem.appendChild(this._highlight);
       }
     });
 
-    this.elem.addEventListener('mousemove', (evt: any) => {
+    this.elem.addEventListener('mousemove', (evt: MouseEvent) => {
       
       if (evt.which == 1) {
         const point = getCoordsFromEvent(evt, this.elem);
@@ -329,7 +329,7 @@ class Board extends Base {
   }
 
   enterSelectionMode(onComplete=(point: Point)=>{}): void {
-    this.elem.onclick = (evt: any) => {
+    this.elem.onclick = (evt: MouseEvent) => {
       const point: Point = getCoordsFromEvent(evt, this.elem);
 
       //exit
@@ -424,7 +424,7 @@ class Board extends Base {
   }
 
   enterZoomMode(type: number): void {
-    this.elem.onclick = (evt: any) => {
+    this.elem.onclick = (evt: MouseEvent) => {
       const scale: number = this._scale + (type === ZoomMode.ZoomIn ? 1 : -1) * 0.25;
       const point: Point = getCoordsFromEvent(evt, this.elem);
       this.zoom(scale, point);

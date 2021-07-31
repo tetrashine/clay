@@ -1,7 +1,7 @@
 import Draggable from 'displays/draggable';
+import Link from 'displays/link';
 import { Point, NodePoint, NodeConfig, NodeAttribute } from 'types/index';
 import INode from 'interfaces/inode';
-declare type Link = any;
 declare class Node extends Draggable implements INode {
     private _doc;
     private _config;

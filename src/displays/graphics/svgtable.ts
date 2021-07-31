@@ -15,8 +15,8 @@ class SvgTable extends Base {
     </table>`;
 
     const fo = this.createDomElement(doc, 'foreignObject', inner);
-    fo.setAttribute('width', 420);
-    fo.setAttribute('height', 70 + rows.length * 40);
+    fo.setAttribute('width', String(420));
+    fo.setAttribute('height', String(70 + rows.length * 40));
 
     return fo;
   }

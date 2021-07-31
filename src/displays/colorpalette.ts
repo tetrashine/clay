@@ -44,7 +44,7 @@ class ColorPalette extends Base {
           `);
         }
         
-        node.onclick = ((color) => (evt: any) => {
+        node.onclick = ((color) => (evt: MouseEvent) => {
           // Prevent browser drag behavior as soon as possible
           evt.preventDefault()
         
