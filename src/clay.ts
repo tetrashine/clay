@@ -137,7 +137,16 @@ class Clay extends Base {
   }
 
   load(config: BoardConfig, state: BoardState): [any, any, Board] {  
-    return this._load(this._dom, config, state);
+    this.setConfig(config);
+    if (this.setState(state)) { 
+      return this._load(this._dom, config, state);
+    }
+  }
+
+  loadState(state: BoardState): [any, any, Board] {
+    if (this.setState(state)) { 
+      return this._load(this._dom, this._config, state);
+    }
   }
 
   generate(doc: any, dom: HTMLElement, config: BoardConfig, state: BoardState): Board {
@@ -287,7 +296,7 @@ class Clay extends Base {
         zoomable: true, 
         colorize: true, 
         exportable: true, 
-        executable: true,
+        executable: false,
       },
       ...config
     }

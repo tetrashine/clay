@@ -12,6 +12,6 @@
       "types": ["node"],
       "target": "es2017"
   },
-  "include": ["src/**/*.d.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }
