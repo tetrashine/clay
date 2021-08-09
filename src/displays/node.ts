@@ -464,10 +464,9 @@ class Node extends Draggable implements INode  {
 
   exportAsJson(): NodeConfig {
     const { x, y, title, color, description = ''} = this._config;
-    return {
+    const state: NodeConfig = {
       "title": title,
       "description": description,
-      "color": color,
       "x": x,
       "y": y,
       "editable": this._editable,
@@ -476,6 +475,10 @@ class Node extends Draggable implements INode  {
       "inputs": this._inputs,
       "outputs": this._outputs
     };
+
+    if (color) state.color = color;
+
+    return state;
   }
 
   getInputCoord(index: number): Point {

@@ -290,6 +290,15 @@ class Board extends Base {
     this.appendChild(link);
   }
 
+  addLinkState(linkState: LinkState): void {
+    const { src, target, output_index, input_index } = linkState;
+    const link: Link = new Link(this._doc, this._nodes[src], output_index, this._nodes[target], input_index, {
+      editable: this._editable
+    });
+    this._links.push(link);
+    this.appendChild(link);
+  }
+
   addToBoardItems(arr: any[], item: any): void {
     item.setIndex(arr.length);
     this.appendChild(item);
@@ -473,6 +482,14 @@ class Board extends Base {
   //#region Getter / Setter
   get scale() {
     return this._scale;
+  }
+
+  get nodeCount() {
+    return this._nodes.length;
+  }
+
+  get linkCount() {
+    return this._links.length;
   }
   //#endregion
 }

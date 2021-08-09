@@ -1,7 +1,7 @@
 import Base from 'displays/abstract/base';
 
 type ButtonOptions = {
-  doc: any, svg: string, tooltip: string, 
+  id: string, doc: any, svg: string, tooltip: string, 
   onClick?: (evt: MouseEvent)=>void, execFn?: ()=>void, cancelFn?: ()=>void, 
   cancelSvg?: string, enable?: boolean
 };
@@ -15,12 +15,13 @@ export default class Button extends Base {
     super();
 
     const {
-      doc, svg, tooltip, 
+      id, doc, svg, tooltip, 
       onClick, execFn, cancelFn, 
       cancelSvg='', enable=true
     } = opts;
     
     let sel: any = this.elem = this.createDomElement(doc, 'div', svg, cancelSvg);
+    sel.setAttribute('id', id);
     sel.setAttribute('class', 'clay-mb e');
 
     const tooltipElem = this.createDomElement(doc, 'span', tooltip);

@@ -25,6 +25,8 @@ import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
 
 import { NodeConfig, LinkState, BoardConfig, BoardState } from 'types/index';
+import Link from 'displays/link';
+import { runtime } from 'webpack';
 //#endregion
 
 //#region SVG Decalations
@@ -109,25 +111,25 @@ class Clay extends Base {
   //#endregion
 
   //#region Public Functions
-  addNode(title: string, nodeConfig: NodeConfig, selection=true): void {
-    const {editable} = this._config;
-    let node: Node;
-    if (selection) {
-      this._board.enterSelectionMode((point) => {
-        node = new Node(document, {
-          title: title,
-          x: point.x,
-          y: point.y,
-          editable: editable,
-          inputs: [],
-          outputs: []
-        });
-        this._board.addNode(node);
-      });
-    } else {
-      node = new Node(document, nodeConfig);
-      this._board.addNode(node);
+  addLink(linkState: LinkState): boolean {
+    if (Clay.validateLink(linkState)) {
+      this._board.addLinkState(linkState);
+
+      return true;
     }
+
+    return false;
+  }
+
+  addNode(nodeConfig: NodeConfig): boolean {
+    if (Clay.validateNode(nodeConfig)) {
+      let node: Node = new Node(document, nodeConfig);
+      this._board.addNode(node);
+
+      return true;
+    }
+
+    return false;
   }
 
   export(): BoardState {
@@ -139,13 +141,15 @@ class Clay extends Base {
   load(config: BoardConfig, state: BoardState): [any, any, Board] {  
     this.setConfig(config);
     if (this.setState(state)) { 
-      return this._load(this._dom, config, state);
+      [this._dom, this._menu, this._board] = this._load(this._dom, config, state);
+      return [this._dom, this._menu, this._board];
     }
   }
 
   loadState(state: BoardState): [any, any, Board] {
     if (this.setState(state)) { 
-      return this._load(this._dom, this._config, state);
+      [this._dom, this._menu, this._board] = this._load(this._dom, this._config, state);
+      return [this._dom, this._menu, this._board];
     }
   }
 
@@ -162,7 +166,7 @@ class Clay extends Base {
   }
 
   setState(state: BoardState): boolean {
-    if (this.validate(state)) {
+    if (Clay.validate(state)) {
       this._state = state;
       return true;
     }
@@ -170,19 +174,19 @@ class Clay extends Base {
     return false;
   }
 
-  validate(state: BoardState): boolean { 
+  static validate(state: BoardState): boolean { 
     const { title, nodes, links } = state;
     
     return (
       typeof(title) === 'string'
       && Array.isArray(nodes)
-      && nodes.every(this.validateNode)
+      && nodes.every(Clay.validateNode)
       && Array.isArray(links)
-      && links.every(this.validateLink)
+      && links.every(Clay.validateLink)
     );
   }
 
-  validateNode(node: NodeConfig): boolean { 
+  static validateNode(node: NodeConfig): boolean { 
     const { title, description, x, y, attrs } = node;
     return (
       typeof(title) === 'string'
@@ -193,7 +197,7 @@ class Clay extends Base {
     );
   }
 
-  validateLink(link: LinkState): boolean { 
+  static validateLink(link: LinkState): boolean { 
     const { dotted, editable, input_index, mode, output_index, src, target, type } = link;
     return (
       typeof(dotted) === 'boolean'
@@ -414,6 +418,7 @@ class Clay extends Base {
     if (editable) {
       //NODE BUTTON
       const nodeBtn: Button = new Button({
+        id: 'node',
         doc: doc, 
         svg: NODE_SVG, 
         cancelSvg: CANCEL_SVG, 
@@ -430,6 +435,7 @@ class Clay extends Base {
       div.appendChild(nodeBtn.elem);
 
       const linkBtn: Button = new Button({
+        id: 'link',
         doc: doc, 
         svg: LINK_SVG, 
         cancelSvg: CANCEL_SVG, 
@@ -451,6 +457,7 @@ class Clay extends Base {
     
       //UNDO
       const undoBtn: Button = new Button({
+        id: 'undo',
         doc: doc, 
         svg: UNDO_SVG,
         tooltip: 'Undo', 
@@ -469,6 +476,7 @@ class Clay extends Base {
       
       //REDO
       const redoBtn: Button = new Button({
+        id: 'redo',
         doc: doc, 
         svg: REDO_SVG,
         tooltip: 'Redo', 
@@ -491,6 +499,7 @@ class Clay extends Base {
     
       //UNSELECT BUTTON
       const unselectBtn: Button = new Button({
+        id: 'unselect',
         doc: doc, 
         svg: UNSELECT_SVG,
         cancelSvg: CANCEL_SVG,
@@ -503,6 +512,7 @@ class Clay extends Base {
     
       //DELETE
       const deleteBtn: Button = new Button({
+        id: 'delete',
         doc: doc, 
         svg: DELETE_SVG,
         cancelSvg: CANCEL_SVG,
@@ -520,6 +530,7 @@ class Clay extends Base {
     //ZOOM IN
     if (zoomable) {
       const zoomInBtn: Button = new Button({
+        id: 'zoomIn',
         doc: doc, 
         svg: ZOOM_IN_SVG,
         cancelSvg: CANCEL_SVG,
@@ -537,6 +548,7 @@ class Clay extends Base {
   
       //ZOOM OUT
       const zoomOutBtn: Button = new Button({
+        id: 'zoomOut',
         doc: doc, 
         svg: ZOOM_OUT_SVG,
         cancelSvg: CANCEL_SVG,
@@ -562,6 +574,7 @@ class Clay extends Base {
     if (colorize) {
       //FILL BUTTON
       const fillBtn: Button = new Button({
+        id: 'fill',
         doc: doc, 
         svg: FILL_SVG,
         tooltip: 'Fill Color', 
@@ -589,6 +602,7 @@ class Clay extends Base {
 
       //FONTCOLOR BUTTON
       const textColorBtn: Button = new Button({
+        id: 'fontColor',
         doc: doc, 
         svg: FONTCOLOR_SVG,
         tooltip: 'Text Color', 
@@ -621,6 +635,7 @@ class Clay extends Base {
     //EXPORT BUTTON
     if (exportable) {
       const exportBtn: Button = new Button({
+        id: 'export',
         doc: doc, 
         svg: EXPORT_SVG,
         cancelSvg: CANCEL_SVG,
@@ -640,6 +655,7 @@ class Clay extends Base {
     //EXPORT BUTTON
     if (executable) {
       const playBtn: Button = new Button({
+        id: 'play',
         doc: doc, 
         svg: PLAY_SVG,
         cancelSvg: PAUSE_SVG,
@@ -651,6 +667,7 @@ class Clay extends Base {
       div.appendChild(playBtn.elem);
 
       const stopBtn: Button = new Button({
+        id: 'stop',
         doc: doc, 
         svg: STOP_SVG,
         tooltip: 'Stop', 
@@ -690,6 +707,14 @@ class Clay extends Base {
   
     //clear selected svg
     this._selectedBtn = undefined;
+  }
+
+  get nodeCount() {
+    return this._board.nodeCount;
+  }
+
+  get linkCount() {
+    return this._board.linkCount;
   }
 }
 

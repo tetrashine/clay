@@ -1,3 +1,6 @@
 import Clay from './src/clay';
 
-export default Clay;
+const validate = Clay.validate;
+export { validate };
+
+export default Clay
