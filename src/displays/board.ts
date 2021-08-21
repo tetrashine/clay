@@ -7,9 +7,10 @@ import Mouse from 'displays/mouse';
 import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
 
-import { Point, NodeConfig, LinkState, BoardState } from 'types/index';
+import { Point, NodeConfig, LinkState, BoardState, DockState } from 'types/index';
 
 import { default as config } from 'constants/config';
+import Dock from './dock';
 const {
   LINK_COLOR, LINK_SELECTED_COLOR,
   NODE_CONNECTOR_COLOR, NODE_CONNECTOR_SELECTED_COLOR, NODE_CONNECTOR_BORDER_COLOR, NODE_CONNECTOR_HOVER_COLOR
@@ -39,6 +40,7 @@ class Board extends Base {
   private _height: number;
   private _zoom: number;
   private _editable: boolean;
+  private _docks: Dock[];
   private _nodes: Node[];
   private _links: Link[];
   private _selected: any[];
@@ -60,6 +62,7 @@ class Board extends Base {
     this._height = height;
     this._zoom = zoom;
     this._editable = editable;
+    this._docks = [];
     this._nodes = [];
     this._links = [];
     this._selected = [];
@@ -134,9 +137,10 @@ class Board extends Base {
 
   load(state: BoardState): void {
     //parse new state
-    const {title, nodes: nodeState, links: linkState} = state;
-    const nodes: Node[] = this.parseNodes(this._doc, nodeState, this._editable);
-    const links: Link[] = this.parseLinks(this._doc, linkState, nodes, this._editable);
+    const {title, docks: dockStates, nodes: nodeStates, links: linkStates} = state;
+    const nodes: Node[] = this.parseNodes(this._doc, nodeStates, this._editable);
+    const docks: Dock[] = this.parseDocks(this._doc, dockStates, this._editable, nodes);
+    const links: Link[] = this.parseLinks(this._doc, linkStates, nodes, this._editable);
 
     this._title = title;
 
@@ -144,8 +148,16 @@ class Board extends Base {
     this.deleteNodes();
 
     //assignment
+    this.setDocks(docks);
     this.setNodes(nodes);
     this.setLinks(links);
+  }
+
+  parseDocks(doc: any, states: DockState[], editable: boolean, nodes: Node[]): Dock[] {
+    return states.map((state: DockState) => new Dock(doc, {
+      editable: editable,
+      ...state,
+    }, nodes));
   }
 
   parseNodes(doc: any, configs: NodeConfig[], editable: boolean): Node[] {
@@ -155,9 +167,9 @@ class Board extends Base {
     }));
   }
 
-  parseLinks(doc: any, configs: LinkState[], nodes: Node[], editable: boolean): Link[] {
-    return configs.map(config => {
-      const { src, target, output_index, input_index } = config;
+  parseLinks(doc: any, states: LinkState[], nodes: Node[], editable: boolean): Link[] {
+    return states.map((state: LinkState) => {
+      const { src, target, output_index, input_index } = state;
       return new Link(doc, nodes[src], output_index, nodes[target], input_index, {
         editable: editable
       })
@@ -168,6 +180,7 @@ class Board extends Base {
     return {
       "title": this._title,
       "editable": this._editable,
+      "docks": this._docks.map((dock: Dock) => dock.exportAsJson()),
       "nodes": this._nodes.map((node: Node) => node.exportAsJson()),
       "links": this._links.map((link: Link) => link.exportAsJson())
     };
@@ -260,6 +273,12 @@ class Board extends Base {
     });
   }
 
+  onNodeDragEnds(node: any) {
+    const docked = this._docks.filter((dock: Dock) => dock.overlap(node)).shift();
+
+    if (docked) docked.addNode(node);
+  }
+
   reorderItems(selected: any[]): void {
     selected.forEach((baseItem: any) => {
       this.removeChild(baseItem);
@@ -280,8 +299,14 @@ class Board extends Base {
     this._mode = EditMode.None;
   }
 
+  addDock(dock: Dock): void {
+    //TODO
+    this.addToBoardItems(this._docks, dock);
+  }
+
   addNode(node: Node): void { 
     node.selectable();
+    node.on('dragend', this.onNodeDragEnds.bind(this, node));
     this.addToBoardItems(this._nodes, node);
   }
 
@@ -308,6 +333,10 @@ class Board extends Base {
 
   setMode(mode: number): void {
     this._mode = mode;
+  }
+
+  setDocks(docks: Dock[]): void {
+    docks.forEach((dock: Dock) => this.addDock(dock));
   }
 
   setNodes(nodes: Node[]): void { 
@@ -461,6 +490,7 @@ class Board extends Base {
     //if node, delete links related to it
     if (this._nodes.indexOf(item) >= 0) {
       this._nodes.splice(this._nodes.indexOf(item), 1);
+      item.off('dragend', this.onNodeDragEnds.bind(this, item));
       this._nodes.forEach((node: Node, index: number) => node.setIndex(index));
     } else if (this._links.indexOf(item) >= 0) {
       // if link

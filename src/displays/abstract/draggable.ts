@@ -112,6 +112,8 @@ abstract class Draggable extends Base {
     window.removeEventListener('touchmove', this.dragFn);
     window.removeEventListener('mouseup', this.endDragFn);
     window.removeEventListener('touchend', this.endDragFn);
+
+    this.trigger('dragend');
   }
   
   setXY(point: Point): void {

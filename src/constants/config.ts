@@ -30,6 +30,12 @@ const Config: {
 
   HIGHLIGHT_BORDER_COLOR: string,
   HIGHLIGHT_BG_COLOR: string,
+
+  DOCK_WIDTH: number, 
+  DOCK_HEIGHT: number,
+  DOCK_COLOR: string,
+  DOCK_TITLE_COLOR: string,
+  DOCK_BORDER_COLOR: string,
 } = {
   LINK_COLOR: '#D0D0D0',
   LINK_SELECTED_COLOR: '#1565c0',
@@ -62,6 +68,12 @@ const Config: {
 
   HIGHLIGHT_BORDER_COLOR: '#2196f3',
   HIGHLIGHT_BG_COLOR: 'rgba(33,150,243,.15)',
+
+  DOCK_WIDTH: 160, 
+  DOCK_HEIGHT: 85,
+  DOCK_COLOR: '#F8F8F8',
+  DOCK_TITLE_COLOR: '#8D8D8B',
+  DOCK_BORDER_COLOR: '#E9E9E9',
 };
 
 export default Config;

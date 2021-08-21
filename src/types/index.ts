@@ -38,6 +38,7 @@ type BoardConfig = {
 
 type BoardState = {
   title: string,
+  docks: DockState[],
   nodes: NodeConfig[],
   links: LinkState[],
 
@@ -56,6 +57,17 @@ type LinkState = {
   input_index: number
 };
 
+type DockState = {
+  width?: number, 
+  height?: number,
+  editable: boolean,
+  x: number, 
+  y: number, 
+  title: string,
+  nodes: number[],
+  color?: string,
+};
+
 export {
   Point,
   NodePoint,
@@ -64,5 +76,6 @@ export {
   NodeAttribute,
   BoardConfig,
   BoardState,
-  LinkState
+  LinkState,
+  DockState
 };

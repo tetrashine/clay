@@ -4,6 +4,7 @@ import Link from 'displays/link';
 
 import { Point, NodePoint, NodeConfig, NodeAttribute } from 'types/index';
 import INode from 'interfaces/inode';
+import Dock from './dock';
 
 import {ArrowDown, ArrowUp, Add, Delete} from 'constants/svg';
 import { default as config } from 'constants/config';
@@ -16,6 +17,7 @@ const {
 class Node extends Draggable implements INode  {
   private _doc: any;
   private _config: NodeConfig;
+  private _dock: Dock;
 
   private _width: number;
   private _height: number;
@@ -483,10 +485,21 @@ class Node extends Draggable implements INode  {
 
   getInputCoord(index: number): Point {
     const { x=0, y=0 } = this._config;
-    return this.selected ? this.getInputCoordByIndex(index) : {
-      x: x,
-      y: y + (this._height / 2),
-    };
+    let coord: Point;
+
+    if (this.isDocked()) {
+      coord = this._dock.getInputCoord(this);
+    } else if (this.selected) {
+      coord = this.getInputCoordByIndex(index);
+    } else {
+      coord = {
+        x: x,
+        y: y + (this._height / 2),
+      };
+    }
+
+
+    return coord;
   }
 
   getInputCoordByIndex(index: number): Point {
@@ -498,12 +511,23 @@ class Node extends Draggable implements INode  {
     };
   }
 
+
   getOutputCoord(index: number): Point {
     const { x=0, y=0 } = this._config;
-    return this.selected ? this.getOutputCoordByIndex(index) : {
-      x: x + this._width,
-      y: y + (this._height / 2),
-    };
+    let coord: Point;
+
+    if (this.isDocked()) {
+      coord = this._dock.getOutputCoord(this);
+    } else if (this.selected) {
+      coord = this.getOutputCoordByIndex(index);
+    } else {
+      coord = {
+        x: x + this._width,
+        y: y + (this._height / 2),
+      };
+    }
+
+    return coord;
   }
 
   getOutputCoordByIndex(index: number): Point {
@@ -655,10 +679,30 @@ class Node extends Draggable implements INode  {
     return div;
   }
 
+  dock(dock: Dock): void {
+    this._dock = dock;
+    this.elem.setAttribute('visibility', 'hidden');
+
+    this.trigger('drag');
+  }
+
+  undock(): void {
+    this._dock = undefined;
+    this.elem.removeAttribute('visibility');
+  }
+
+  isDocked(): boolean {
+    return this._dock !== undefined;
+  }
+
   //#region
 
   get outputCount(): number {
     return this._outputCount;
+  }
+
+  get title(): string {
+    return this._config.title;
   }
   //#endregion
 }

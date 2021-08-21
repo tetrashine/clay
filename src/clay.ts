@@ -7,6 +7,7 @@ import ColorPalette from 'menu/colorpalette';
 import {
   CancelInRed as CANCEL_SVG,
   ArrowForward as LINK_SVG,
+  Dock as DOCK_SVG,
   Undo as UNDO_SVG, Redo as REDO_SVG,
   Delete as DELETE_SVG,
   ZoomIn as ZOOM_IN_SVG, ZoomOut as ZOOM_OUT_SVG,
@@ -17,7 +18,7 @@ import {
 import { default as config } from 'constants/config';
 const {
   NODE_SELECTED_BORDER_COLOR, NODE_SELECTED_STROKE_WEIGHT, NODE_BORDER_COLOR,
-  HIGHLIGHT_BORDER_COLOR, HIGHLIGHT_BG_COLOR
+  HIGHLIGHT_BORDER_COLOR, HIGHLIGHT_BG_COLOR, NODE_PADDING
 } = config;
 
 import {KeyCode} from 'constants/keycode';
@@ -25,8 +26,6 @@ import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
 
 import { NodeConfig, LinkState, BoardConfig, BoardState } from 'types/index';
-import Link from 'displays/link';
-import { runtime } from 'webpack';
 //#endregion
 
 //#region SVG Decalations
@@ -238,6 +237,7 @@ class Clay extends Base {
       `.io-link{position:absolute;font-size:8px;text-align:center;color:white;font-weight:bold;}`,
       `.no-mouse{pointer-events:none;}`,
       `.highlight{fill:rgba(0,0,0,0);stroke-width:${NODE_SELECTED_STROKE_WEIGHT};stroke:${NODE_SELECTED_BORDER_COLOR};}`,
+      `.dock-node + .dock-node{margin-top:${NODE_PADDING}px;}`
     ];
     style.innerHTML = styles.join(' ');
     document.head.appendChild(style);
@@ -450,6 +450,23 @@ class Clay extends Base {
       linkBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, linkBtn).bind(this));
       this._buttons.links = linkBtn;
       div.appendChild(linkBtn.elem);
+
+      const dockBtn: Button = new Button({
+        id: 'dock',
+        doc: doc, 
+        svg: DOCK_SVG, 
+        cancelSvg: CANCEL_SVG, 
+        tooltip: 'New dock', 
+        execFn: () => {
+          
+        },
+        cancelFn: () => {
+          
+        }
+      });
+      dockBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, dockBtn).bind(this));
+      this._buttons.dock = dockBtn;
+      div.appendChild(dockBtn.elem);
     
       //Breakline
       svg = this.createHrElement(doc);
