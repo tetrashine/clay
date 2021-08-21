@@ -3,13 +3,6 @@ import SelectableHOC from 'composite/selectable';
 
 import { Point } from 'types/index';
 
-const getCoordsFromEvent = (ev: any) => {
-  if (ev.changedTouches) {
-    ev = ev.changedTouches[0]
-  }
-  return { x: ev.clientX, y: ev.clientY }
-}
-
 abstract class Draggable extends Base {
   private _x: number;
   private _y: number;
@@ -24,6 +17,13 @@ abstract class Draggable extends Base {
     super();
     this._enabled = false;
     this._dragged = false;
+  }
+
+  getCoordsFromEvent(ev: any): Point {
+    if (ev.changedTouches) {
+      ev = ev.changedTouches[0]
+    }
+    return { x: ev.clientX, y: ev.clientY }
   }
 
   draggable(el: any): void {
@@ -66,7 +66,7 @@ abstract class Draggable extends Base {
     evt.stopPropagation()
   
     //setup last click
-    var clicked = getCoordsFromEvent(evt);
+    var clicked = this.getCoordsFromEvent(evt);
     var rect = this.elem.getBoundingClientRect();
     this._offset = {
       x: clicked.x - rect.x,
@@ -85,7 +85,7 @@ abstract class Draggable extends Base {
   drag(evt: MouseEvent): void {
     this._dragged = true;
     const offset = this._offset;
-    const coord = getCoordsFromEvent(evt);
+    const coord = this.getCoordsFromEvent(evt);
   
     const x = coord.x - offset.x;
     const y = coord.y - offset.y;

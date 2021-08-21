@@ -686,7 +686,12 @@ class Node extends Draggable implements INode  {
     this.trigger('drag');
   }
 
-  undock(): void {
+  undock(event: MouseEvent): void {
+    const coord = this.getCoordsFromEvent(event);
+    this.setXY(coord);
+    this.startDragFn(event);
+    this.drag(event);
+
     this._dock = undefined;
     this.elem.removeAttribute('visibility');
   }
