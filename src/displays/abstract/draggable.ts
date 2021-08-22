@@ -83,6 +83,8 @@ abstract class Draggable extends Base {
   }
 
   drag(evt: MouseEvent): void {
+    if (!this._dragged) this.trigger('dragstart');
+
     this._dragged = true;
     const offset = this._offset;
     const coord = this.getCoordsFromEvent(evt);

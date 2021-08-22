@@ -11,13 +11,14 @@ var clay;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
 const board_1 = __webpack_require__(/*! displays/board */ "./src/displays/board.ts");
 const node_1 = __webpack_require__(/*! displays/node */ "./src/displays/node.ts");
-const colorpalette_1 = __webpack_require__(/*! displays/colorpalette */ "./src/displays/colorpalette.ts");
-const svg_1 = __webpack_require__(/*! displays/svg */ "./src/displays/svg.ts");
+const button_1 = __webpack_require__(/*! menu/button */ "./src/menu/button.ts");
+const colorpalette_1 = __webpack_require__(/*! menu/colorpalette */ "./src/menu/colorpalette.ts");
+const svg_1 = __webpack_require__(/*! constants/svg */ "./src/constants/svg.ts");
 const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
-const { NODE_SELECTED_BORDER_COLOR, NODE_SELECTED_STROKE_WEIGHT, NODE_BORDER_COLOR, HIGHLIGHT_BORDER_COLOR, HIGHLIGHT_BG_COLOR } = config_1.default;
+const { NODE_SELECTED_BORDER_COLOR, NODE_SELECTED_STROKE_WEIGHT, NODE_BORDER_COLOR, HIGHLIGHT_BORDER_COLOR, HIGHLIGHT_BG_COLOR, NODE_PADDING } = config_1.default;
 const keycode_1 = __webpack_require__(/*! constants/keycode */ "./src/constants/keycode.ts");
 const editmode_1 = __webpack_require__(/*! constants/editmode */ "./src/constants/editmode.ts");
 const zoommode_1 = __webpack_require__(/*! constants/zoommode */ "./src/constants/zoommode.ts");
@@ -69,26 +70,20 @@ class Clay extends base_1.default {
         [this._dom, this._menu, this._board] = this.build(id, config, state);
         this.menuCalibration = this._menuCalibration(this._config);
     }
-    addNode(title, nodeConfig, selection = true) {
-        const { editable } = this._config;
-        let node;
-        if (selection) {
-            this._board.enterSelectionMode((point) => {
-                node = new node_1.default(document, {
-                    title: title,
-                    x: point.x,
-                    y: point.y,
-                    editable: editable,
-                    inputs: [],
-                    outputs: []
-                });
-                this._board.addNode(node);
-            });
+    addLink(linkState) {
+        if (Clay.validateLink(linkState)) {
+            this._board.addLinkState(linkState);
+            return true;
         }
-        else {
-            node = new node_1.default(document, nodeConfig);
+        return false;
+    }
+    addNode(nodeConfig) {
+        if (Clay.validateNode(nodeConfig)) {
+            let node = new node_1.default(document, nodeConfig);
             this._board.addNode(node);
+            return true;
         }
+        return false;
     }
     export() {
         const state = this._board.exportState();
@@ -96,7 +91,17 @@ class Clay extends base_1.default {
         return state;
     }
     load(config, state) {
-        return this._load(this._dom, config, state);
+        this.setConfig(config);
+        if (this.setState(state)) {
+            [this._dom, this._menu, this._board] = this._load(this._dom, config, state);
+            return [this._dom, this._menu, this._board];
+        }
+    }
+    loadState(state) {
+        if (this.setState(state)) {
+            [this._dom, this._menu, this._board] = this._load(this._dom, this._config, state);
+            return [this._dom, this._menu, this._board];
+        }
     }
     generate(doc, dom, config, state) {
         const { width, height, zoom, editable } = config;
@@ -108,21 +113,30 @@ class Clay extends base_1.default {
         this._config = this.applyDefault(config);
     }
     setState(state) {
-        if (this.validate(state)) {
+        if (Clay.validate(state)) {
             this._state = state;
             return true;
         }
         return false;
     }
-    validate(state) {
-        const { title, nodes, links } = state;
+    static validate(state) {
+        const { title, docks, nodes, links } = state;
         return (typeof (title) === 'string'
+            && Array.isArray(docks)
+            && docks.every(Clay.validateDock)
             && Array.isArray(nodes)
-            && nodes.every(this.validateNode)
+            && nodes.every(Clay.validateNode)
             && Array.isArray(links)
-            && links.every(this.validateLink));
+            && links.every(Clay.validateLink));
     }
-    validateNode(node) {
+    static validateDock(state) {
+        const { x, y, title, nodes } = state;
+        return (typeof (title) === 'string'
+            && typeof (x) === 'number'
+            && typeof (y) === 'number'
+            && Array.isArray(nodes));
+    }
+    static validateNode(node) {
         const { title, description, x, y, attrs } = node;
         return (typeof (title) === 'string'
             && typeof (description) === 'string'
@@ -130,7 +144,7 @@ class Clay extends base_1.default {
             && typeof (y) === 'number'
             && Array.isArray(attrs));
     }
-    validateLink(link) {
+    static validateLink(link) {
         const { dotted, editable, input_index, mode, output_index, src, target, type } = link;
         return (typeof (dotted) === 'boolean'
             && typeof (editable) === 'boolean'
@@ -165,6 +179,7 @@ class Clay extends base_1.default {
             `.io-link{position:absolute;font-size:8px;text-align:center;color:white;font-weight:bold;}`,
             `.no-mouse{pointer-events:none;}`,
             `.highlight{fill:rgba(0,0,0,0);stroke-width:${NODE_SELECTED_STROKE_WEIGHT};stroke:${NODE_SELECTED_BORDER_COLOR};}`,
+            `.dock-node + .dock-node{margin-top:${NODE_PADDING}px;}`
         ];
         style.innerHTML = styles.join(' ');
         document.head.appendChild(style);
@@ -216,7 +231,7 @@ class Clay extends base_1.default {
             zoomable: true,
             colorize: true,
             exportable: true,
-            executable: true,
+            executable: false,
         }, config);
     }
     initialize() { }
@@ -271,27 +286,22 @@ class Clay extends base_1.default {
                 break;
         }
     }
-    onMenuBtnClick(mode, svg, cursor = 'crosshair') {
+    onMenuBtnClick(mode, btn, cursor = 'crosshair') {
         return function () {
             if (this._mode !== mode) {
-                if (this._selectedSvg) {
-                    this._selectedSvg.innerHTML = this._selectedSvg._svg;
-                    this._selectedSvg.cancelFn();
+                if (this._selectedBtn) {
+                    this._selectedBtn.toDefaultView();
+                    this._selectedBtn.cancelFn();
                 }
                 this._mode = mode;
-                if (svg.toCancelView) {
-                    svg.toCancelView();
-                }
-                else {
-                    svg.innerHTML = svg._cancel;
-                }
-                this._selectedSvg = svg;
+                btn.toCancelView();
+                this._selectedBtn = btn;
                 this._board.elem.style.cursor = cursor;
-                svg.execFn();
+                btn.execFn();
             }
             else {
                 this.resetMenuBtns();
-                svg.cancelFn();
+                btn.cancelFn();
             }
         };
     }
@@ -312,6 +322,7 @@ class Clay extends base_1.default {
         div.setAttribute('style', `height:28px;width:${width - 1}px;background-color:white;border:#dadce0 solid 1px;padding:6px 0;;display:table;position:absolute;border-collapse:separate;border-spacing:6px 0px;z-index:1000;`);
         if (editable) {
             const nodeBtn = new button_1.default({
+                id: 'node',
                 doc: doc,
                 svg: NODE_SVG,
                 cancelSvg: svg_1.CancelInRed,
@@ -327,23 +338,41 @@ class Clay extends base_1.default {
             this._buttons.node = nodeBtn;
             div.appendChild(nodeBtn.elem);
             const linkBtn = new button_1.default({
+                id: 'link',
                 doc: doc,
                 svg: svg_1.ArrowForward,
                 cancelSvg: svg_1.CancelInRed,
                 tooltip: 'New link',
-                execFn: (evt) => {
+                execFn: () => {
                     this._board.enterLinkMode(this._ActionFunctions.onExecCompleteFn);
                 },
-                cancelFn: (evt) => {
+                cancelFn: () => {
                     this._board.exitLinkMode();
                 }
             });
-            linkBtn.onclick = this.onMenuBtnClick(editmode_1.EditMode.Link, linkBtn).bind(this);
+            linkBtn.registerEvt('onclick', this.onMenuBtnClick(editmode_1.EditMode.ZoomIn, linkBtn).bind(this));
             this._buttons.links = linkBtn;
-            div.appendChild(linkBtn);
+            div.appendChild(linkBtn.elem);
+            const dockBtn = new button_1.default({
+                id: 'dock',
+                doc: doc,
+                svg: svg_1.Dock,
+                cancelSvg: svg_1.CancelInRed,
+                tooltip: 'New dock',
+                execFn: () => {
+                    this._board.enterDockMode(this._ActionFunctions.onExecCompleteFn);
+                },
+                cancelFn: () => {
+                    this._board.exitSelectionMode();
+                }
+            });
+            dockBtn.registerEvt('onclick', this.onMenuBtnClick(editmode_1.EditMode.ZoomIn, dockBtn).bind(this));
+            this._buttons.dock = dockBtn;
+            div.appendChild(dockBtn.elem);
             svg = this.createHrElement(doc);
             div.appendChild(svg);
-            const undoBtn = this.createMenuBtnElement({
+            const undoBtn = new button_1.default({
+                id: 'undo',
                 doc: doc,
                 svg: svg_1.Undo,
                 tooltip: 'Undo',
@@ -357,8 +386,9 @@ class Clay extends base_1.default {
                 },
             });
             this._buttons.undo = undoBtn;
-            div.appendChild(undoBtn);
-            const redoBtn = this.createMenuBtnElement({
+            div.appendChild(undoBtn.elem);
+            const redoBtn = new button_1.default({
+                id: 'redo',
                 doc: doc,
                 svg: svg_1.Redo,
                 tooltip: 'Redo',
@@ -372,10 +402,11 @@ class Clay extends base_1.default {
                 enable: false
             });
             this._buttons.redo = redoBtn;
-            div.appendChild(redoBtn);
+            div.appendChild(redoBtn.elem);
             svg = this.createHrElement(doc);
             div.appendChild(svg);
-            const unselectBtn = this.createMenuBtnElement({
+            const unselectBtn = new button_1.default({
+                id: 'unselect',
                 doc: doc,
                 svg: UNSELECT_SVG,
                 cancelSvg: svg_1.CancelInRed,
@@ -384,8 +415,9 @@ class Clay extends base_1.default {
                 onClick: this._ActionFunctions.unselectFn
             });
             this._buttons.unselect = unselectBtn;
-            div.appendChild(unselectBtn);
-            const deleteBtn = this.createMenuBtnElement({
+            div.appendChild(unselectBtn.elem);
+            const deleteBtn = new button_1.default({
+                id: 'delete',
                 doc: doc,
                 svg: svg_1.Delete,
                 cancelSvg: svg_1.CancelInRed,
@@ -394,11 +426,12 @@ class Clay extends base_1.default {
                 onClick: this._ActionFunctions.deleteSelectedFn
             });
             this._buttons.delete = deleteBtn;
-            div.appendChild(deleteBtn);
+            div.appendChild(deleteBtn.elem);
             div.appendChild(this.createHrElement(doc));
         }
         if (zoomable) {
-            const zoomInBtn = this.createMenuBtnElement({
+            const zoomInBtn = new button_1.default({
+                id: 'zoomIn',
                 doc: doc,
                 svg: svg_1.ZoomIn,
                 cancelSvg: svg_1.CancelInRed,
@@ -406,47 +439,49 @@ class Clay extends base_1.default {
                 execFn: () => {
                     this._board.enterZoomMode(zoommode_1.ZoomMode.ZoomIn);
                 },
-                cancelFn: (evt) => {
+                cancelFn: () => {
                     this._board.exitZoomMode();
                 }
             });
-            zoomInBtn.onclick = this.onMenuBtnClick(editmode_1.EditMode.ZoomIn, zoomInBtn).bind(this);
+            zoomInBtn.registerEvt('onclick', this.onMenuBtnClick(editmode_1.EditMode.ZoomIn, zoomInBtn).bind(this));
             this._buttons.zoomIn = zoomInBtn;
-            div.appendChild(zoomInBtn);
-            const zoomOutBtn = this.createMenuBtnElement({
+            div.appendChild(zoomInBtn.elem);
+            const zoomOutBtn = new button_1.default({
+                id: 'zoomOut',
                 doc: doc,
                 svg: svg_1.ZoomOut,
                 cancelSvg: svg_1.CancelInRed,
-                tooltip: 'Zoom In',
+                tooltip: 'Zoom Out',
                 execFn: () => {
                     this._board.enterZoomMode(zoommode_1.ZoomMode.ZoomOut);
                 },
-                cancelFn: (evt) => {
+                cancelFn: () => {
                     this._board.exitZoomMode();
                 }
             });
-            zoomOutBtn.onclick = this.onMenuBtnClick(editmode_1.EditMode.ZoomOut, zoomOutBtn).bind(this);
+            zoomOutBtn.registerEvt('onclick', this.onMenuBtnClick(editmode_1.EditMode.ZoomOut, zoomOutBtn).bind(this));
             this._buttons.zoomOut = zoomOutBtn;
-            div.appendChild(zoomOutBtn);
+            div.appendChild(zoomOutBtn.elem);
             const zoomLvl = this.createZoomLevelElement(doc);
             div.appendChild(zoomLvl);
             div.appendChild(this.createHrElement(doc));
         }
         if (colorize) {
-            const fillBtn = this.createMenuBtnElement({
+            const fillBtn = new button_1.default({
+                id: 'fill',
                 doc: doc,
                 svg: svg_1.FormatColorFill,
                 tooltip: 'Fill Color',
                 onClick: (evt) => { },
+                enable: false,
             });
             this._buttons.fill = fillBtn;
-            div.appendChild(fillBtn);
-            this.disableMenuBtn(fillBtn);
+            div.appendChild(fillBtn.elem);
             let cp1 = new colorpalette_1.default(doc);
-            fillBtn.appendChildByElement(cp1);
+            fillBtn.appendChild(cp1);
             this._palettes.push(cp1);
-            fillBtn.onclick = ((svg, cp) => () => {
-                if (svg._enable) {
+            fillBtn.registerEvt('onclick', ((svg, cp) => () => {
+                if (svg.isEnable()) {
                     this._palettes.filter((_) => _ !== cp).forEach((_) => _.hide());
                     if (cp.toggle()) {
                         cp.once('palette-select', (color) => {
@@ -454,8 +489,9 @@ class Clay extends base_1.default {
                         });
                     }
                 }
-            })(fillBtn, cp1);
-            const textColorBtn = this.createMenuBtnElement({
+            })(fillBtn, cp1));
+            const textColorBtn = new button_1.default({
+                id: 'fontColor',
                 doc: doc,
                 svg: svg_1.FormatColorText,
                 tooltip: 'Text Color',
@@ -464,10 +500,10 @@ class Clay extends base_1.default {
             });
             this._buttons.fontfill = textColorBtn;
             let cp2 = new colorpalette_1.default(doc);
-            textColorBtn.appendChildByElement(cp2);
+            textColorBtn.appendChild(cp2);
             this._palettes.push(cp2);
-            textColorBtn.onclick = ((svg, cp) => () => {
-                if (svg._enable) {
+            textColorBtn.registerEvt('onclick', ((svg, cp) => () => {
+                if (svg.isEnable()) {
                     this._palettes.filter((_) => _ !== cp).forEach((_) => _.hide());
                     if (cp.toggle()) {
                         cp.once('palette-select', (color) => {
@@ -475,12 +511,13 @@ class Clay extends base_1.default {
                         });
                     }
                 }
-            })(textColorBtn, cp2);
-            div.appendChild(textColorBtn);
+            })(textColorBtn, cp2));
+            div.appendChild(textColorBtn.elem);
             div.appendChild(this.createHrElement(doc));
         }
         if (exportable) {
-            const exportBtn = this.createMenuBtnElement({
+            const exportBtn = new button_1.default({
+                id: 'export',
                 doc: doc,
                 svg: EXPORT_SVG,
                 cancelSvg: svg_1.CancelInRed,
@@ -490,11 +527,12 @@ class Clay extends base_1.default {
                 },
             });
             this._buttons.export = exportBtn;
-            div.appendChild(exportBtn);
+            div.appendChild(exportBtn.elem);
             div.appendChild(this.createHrElement(doc));
         }
         if (executable) {
-            const playBtn = this.createMenuBtnElement({
+            const playBtn = new button_1.default({
+                id: 'play',
                 doc: doc,
                 svg: svg_1.Play,
                 cancelSvg: svg_1.Pause,
@@ -502,29 +540,42 @@ class Clay extends base_1.default {
                 onClick: (evt) => { },
             });
             this._buttons.play = playBtn;
-            div.appendChild(playBtn);
-            const stopBtn = this.createMenuBtnElement({
+            div.appendChild(playBtn.elem);
+            const stopBtn = new button_1.default({
+                id: 'stop',
                 doc: doc,
                 svg: svg_1.Stop,
                 tooltip: 'Stop',
                 onClick: (evt) => { },
             });
             this._buttons.stop = stopBtn;
-            div.appendChild(stopBtn);
+            div.appendChild(stopBtn.elem);
         }
-        svg = this.createMenuElement(doc, '', '');
+        svg = this.createDomElement(doc, 'div', '');
         svg.setAttribute('class', '');
         div.appendChild(svg);
         parent.appendChild(div);
+        return div;
     }
     resetMenuBtns() {
         this._mode = editmode_1.EditMode.None;
         let buttons = this._buttons;
         Object.keys(buttons).forEach((key) => {
-            buttons[key].innerHTML = buttons[key]._svg;
+            if (buttons[key].toDefaultView) {
+                buttons[key].toDefaultView();
+            }
+            else {
+                buttons[key].innerHTML = buttons[key]._svg;
+            }
         });
         this._board.elem.style.cursor = 'default';
-        this._selectedSvg = undefined;
+        this._selectedBtn = undefined;
+    }
+    get nodeCount() {
+        return this._board.nodeCount;
+    }
+    get linkCount() {
+        return this._board.linkCount;
     }
 }
 exports.default = Clay;
@@ -605,6 +656,11 @@ const Config = {
     NODE_IO_CONNECTOR_COLOR: '#4caf50',
     HIGHLIGHT_BORDER_COLOR: '#2196f3',
     HIGHLIGHT_BG_COLOR: 'rgba(33,150,243,.15)',
+    DOCK_WIDTH: 160,
+    DOCK_HEIGHT: 85,
+    DOCK_COLOR: '#F8F8F8',
+    DOCK_TITLE_COLOR: '#8D8D8B',
+    DOCK_BORDER_COLOR: '#E9E9E9',
 };
 exports.default = Config;
 
@@ -642,6 +698,44 @@ exports.KeyCode = {
 
 /***/ }),
 
+/***/ "./src/constants/svg.ts":
+/*!******************************!*\
+  !*** ./src/constants/svg.ts ***!
+  \******************************/
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Dock = exports.FormatColorText = exports.FormatColorFill = exports.ZoomOut = exports.ZoomIn = exports.Redo = exports.Undo = exports.Stop = exports.Pause = exports.Play = exports.CancelInRed = exports.Add = exports.Delete = exports.ArrowForward = exports.ArrowUp = exports.ArrowDown = exports.MoreVert = void 0;
+const PathToSvgIcon = (d, size, className = '', style = '') => {
+    const MENU_CLASS = `class="${className}"`;
+    const STYLE = `style="${style}"`;
+    const ICON_SIZE = `width="${size}" height="${size}"`;
+    return `<svg ${MENU_CLASS} ${STYLE} viewBox="0 0 24 24" ${ICON_SIZE}><g><g><path d="${d}"/></g></g></svg>`;
+};
+const MuiSize = 18;
+const MuiPathToSvgIcon = (d, { className = '', style = '' } = {}) => PathToSvgIcon(d, MuiSize, className, style);
+exports.MoreVert = MuiPathToSvgIcon("M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z");
+exports.ArrowDown = MuiPathToSvgIcon("M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z");
+exports.ArrowUp = MuiPathToSvgIcon("M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z");
+exports.ArrowForward = MuiPathToSvgIcon("M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z");
+exports.Delete = MuiPathToSvgIcon("M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z");
+exports.Add = MuiPathToSvgIcon("M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z");
+exports.CancelInRed = MuiPathToSvgIcon("M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z", { style: "fill:#E21B1B;" });
+exports.Play = MuiPathToSvgIcon("M8 5v14l11-7z");
+exports.Pause = MuiPathToSvgIcon("M6 19h4V5H6v14zm8-14v14h4V5h-4z");
+exports.Stop = MuiPathToSvgIcon("M6 6h12v12H6z");
+exports.Undo = MuiPathToSvgIcon("M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z");
+exports.Redo = MuiPathToSvgIcon("M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z");
+exports.ZoomIn = MuiPathToSvgIcon("M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z");
+exports.ZoomOut = MuiPathToSvgIcon("M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z");
+exports.FormatColorFill = MuiPathToSvgIcon("M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z");
+exports.FormatColorText = MuiPathToSvgIcon("M11 3L5.5 17h2.25l1.12-3h6.25l1.12 3h2.25L13 3h-2zm-1.38 9L12 5.67 14.38 12H9.62z");
+exports.Dock = MuiPathToSvgIcon("M8 23h8v-2H8v2zm8-21.99L8 1c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM16 15H8V5h8v10z");
+
+
+/***/ }),
+
 /***/ "./src/constants/zoommode.ts":
 /*!***********************************!*\
   !*** ./src/constants/zoommode.ts ***!
@@ -656,15 +750,15 @@ exports.ZoomMode = { ZoomIn: 0, ZoomOut: 1 };
 
 /***/ }),
 
-/***/ "./src/displays/base.ts":
-/*!******************************!*\
-  !*** ./src/displays/base.ts ***!
-  \******************************/
+/***/ "./src/displays/abstract/base.ts":
+/*!***************************************!*\
+  !*** ./src/displays/abstract/base.ts ***!
+  \***************************************/
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const evented_1 = __webpack_require__(/*! displays/evented */ "./src/displays/evented.ts");
+const evented_1 = __webpack_require__(/*! displays/abstract/evented */ "./src/displays/abstract/evented.ts");
 class Base extends evented_1.default {
     appendChild(node) {
         this.appendChildByElement(node.elem);
@@ -700,6 +794,14 @@ class Base extends evented_1.default {
     remove() {
         this.elem.remove();
     }
+    overlap(base) {
+        const rect1 = base.elem.getBoundingClientRect();
+        const rect2 = this.elem.getBoundingClientRect();
+        return !(rect1.right < rect2.left ||
+            rect1.left > rect2.right ||
+            rect1.bottom < rect2.top ||
+            rect1.top > rect2.bottom);
+    }
     get elem() {
         return this._sel;
     }
@@ -713,6 +815,175 @@ exports.default = Base;
 
 /***/ }),
 
+/***/ "./src/displays/abstract/draggable.ts":
+/*!********************************************!*\
+  !*** ./src/displays/abstract/draggable.ts ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
+const selectable_1 = __webpack_require__(/*! composite/selectable */ "./src/composite/selectable.ts");
+class Draggable extends base_1.default {
+    constructor() {
+        super();
+        this._enabled = false;
+        this._dragged = false;
+    }
+    getCoordsFromEvent(ev) {
+        if (ev.changedTouches) {
+            ev = ev.changedTouches[0];
+        }
+        return { x: ev.clientX, y: ev.clientY };
+    }
+    draggable(el) {
+        this._enabled = true;
+        this.startDragFn = this.startDrag.bind(this);
+        this.dragFn = this.drag.bind(this);
+        this.endDragFn = this.endDrag.bind(this);
+        this.init(this.enabled, el);
+    }
+    init(enabled, el) {
+        el.addEventListener('mousedown', this.startDragFn);
+        el.addEventListener('touchstart', this.startDragFn, { passive: false });
+    }
+    startListening() {
+        this.elem.addEventListener('mousedown', this.startDragFn);
+        this.elem.addEventListener('touchstart', this.startDragFn, { passive: false });
+    }
+    stopListening() {
+        this.elem.removeEventListener('mousedown', this.startDragFn);
+        this.elem.removeEventListener('touchstart', this.startDragFn, { passive: false });
+    }
+    destroy() {
+        this.stopListening();
+    }
+    startDrag(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        var clicked = this.getCoordsFromEvent(evt);
+        var rect = this.elem.getBoundingClientRect();
+        this._offset = {
+            x: clicked.x - rect.x,
+            y: clicked.y - rect.y
+        };
+        window.addEventListener('mousemove', this.dragFn);
+        window.addEventListener('touchmove', this.dragFn, { passive: false });
+        window.addEventListener('mouseup', this.endDragFn);
+        window.addEventListener('touchend', this.endDragFn, { passive: false });
+    }
+    drag(evt) {
+        if (!this._dragged)
+            this.trigger('dragstart');
+        this._dragged = true;
+        const offset = this._offset;
+        const coord = this.getCoordsFromEvent(evt);
+        const x = coord.x - offset.x;
+        const y = coord.y - offset.y;
+        const dx = x - this.x;
+        const dy = y - this.y;
+        this.setXY({
+            x: x,
+            y: y
+        });
+        this.trigger('drag', {
+            x: x,
+            y: y,
+            dx: dx,
+            dy: dy,
+        });
+    }
+    endDrag() {
+        if (!this._dragged)
+            this.trigger('clickonly');
+        this._dragged = false;
+        window.removeEventListener('mousemove', this.dragFn);
+        window.removeEventListener('touchmove', this.dragFn);
+        window.removeEventListener('mouseup', this.endDragFn);
+        window.removeEventListener('touchend', this.endDragFn);
+        this.trigger('dragend');
+    }
+    setXY(point) {
+        this.x = point.x;
+        this.y = point.y;
+    }
+    isDragging() {
+        return this._dragged;
+    }
+    get x() {
+        return this._x;
+    }
+    set x(v) {
+        this._x = v;
+    }
+    get y() {
+        return this._y;
+    }
+    set y(v) {
+        this._y = v;
+    }
+    get enabled() {
+        return this._enabled;
+    }
+}
+exports.default = selectable_1.default(Draggable);
+
+
+/***/ }),
+
+/***/ "./src/displays/abstract/evented.ts":
+/*!******************************************!*\
+  !*** ./src/displays/abstract/evented.ts ***!
+  \******************************************/
+/***/ ((__unused_webpack_module, exports) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+class Evented {
+    constructor() {
+        this._events = {};
+    }
+    _defaulted(name) {
+        if (!this._events[name]) {
+            this._events[name] = [];
+        }
+    }
+    off(name, callback) {
+        this._defaulted(name);
+        var arr = this._events[name];
+        for (var i = arr.length - 1; i >= 0; i--) {
+            if (arr[i] === callback) {
+                arr.splice(i, 1);
+                break;
+            }
+        }
+    }
+    on(name, callback) {
+        this._defaulted(name);
+        this._events[name].push(callback);
+    }
+    once(name, callback) {
+        this._defaulted(name);
+        let func = (...args) => {
+            callback.call(this, ...args);
+            this.off(name, func);
+        };
+        this._events[name].push(func);
+    }
+    trigger(name, ...args) {
+        if (this._events[name]) {
+            this._events[name].forEach((_) => {
+                _.call(this, ...args);
+            });
+        }
+    }
+}
+exports.default = Evented;
+
+
+/***/ }),
+
 /***/ "./src/displays/board.ts":
 /*!*******************************!*\
   !*** ./src/displays/board.ts ***!
@@ -721,13 +992,14 @@ exports.default = Base;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
 const node_1 = __webpack_require__(/*! displays/node */ "./src/displays/node.ts");
 const link_1 = __webpack_require__(/*! displays/link */ "./src/displays/link.ts");
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
 const mouse_1 = __webpack_require__(/*! displays/mouse */ "./src/displays/mouse.ts");
 const editmode_1 = __webpack_require__(/*! constants/editmode */ "./src/constants/editmode.ts");
 const zoommode_1 = __webpack_require__(/*! constants/zoommode */ "./src/constants/zoommode.ts");
 const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
+const dock_1 = __webpack_require__(/*! ./dock */ "./src/displays/dock.ts");
 const { LINK_COLOR, LINK_SELECTED_COLOR, NODE_CONNECTOR_COLOR, NODE_CONNECTOR_SELECTED_COLOR, NODE_CONNECTOR_BORDER_COLOR, NODE_CONNECTOR_HOVER_COLOR } = config_1.default;
 const XMLNS = "http://www.w3.org/2000/svg";
 const getCoordsFromEvent = (ev, svg) => {
@@ -750,6 +1022,7 @@ class Board extends base_1.default {
         this._height = height;
         this._zoom = zoom;
         this._editable = editable;
+        this._docks = [];
         this._nodes = [];
         this._links = [];
         this._selected = [];
@@ -805,20 +1078,25 @@ class Board extends base_1.default {
         return matrix;
     }
     load(state) {
-        const { title, nodes: nodeState, links: linkState } = state;
-        const nodes = this.parseNodes(this._doc, nodeState, this._editable);
-        const links = this.parseLinks(this._doc, linkState, nodes, this._editable);
+        const { title, docks: dockStates, nodes: nodeStates, links: linkStates } = state;
+        const nodes = this.parseNodes(this._doc, nodeStates, this._editable);
+        const docks = this.parseDocks(this._doc, dockStates, this._editable, nodes);
+        const links = this.parseLinks(this._doc, linkStates, nodes, this._editable);
         this._title = title;
         this.deleteNodes();
+        this.setDocks(docks);
         this.setNodes(nodes);
         this.setLinks(links);
+    }
+    parseDocks(doc, states, editable, nodes) {
+        return states.map((state) => new dock_1.default(doc, Object.assign({ editable: editable }, state), nodes));
     }
     parseNodes(doc, configs, editable) {
         return configs.map((config) => new node_1.default(doc, Object.assign({ editable: editable }, config)));
     }
-    parseLinks(doc, configs, nodes, editable) {
-        return configs.map(config => {
-            const { src, target, output_index, input_index } = config;
+    parseLinks(doc, states, nodes, editable) {
+        return states.map((state) => {
+            const { src, target, output_index, input_index } = state;
             return new link_1.default(doc, nodes[src], output_index, nodes[target], input_index, {
                 editable: editable
             });
@@ -828,6 +1106,7 @@ class Board extends base_1.default {
         return {
             "title": this._title,
             "editable": this._editable,
+            "docks": this._docks.map((dock) => dock.exportAsJson()),
             "nodes": this._nodes.map((node) => node.exportAsJson()),
             "links": this._links.map((link) => link.exportAsJson())
         };
@@ -900,6 +1179,11 @@ class Board extends base_1.default {
             n._links.forEach((link) => link.redrawPath());
         });
     }
+    onNodeDragEnds(node) {
+        const docked = this._docks.filter((dock) => dock.overlap(node)).shift();
+        if (docked)
+            docked.addNode(node);
+    }
     reorderItems(selected) {
         selected.forEach((baseItem) => {
             this.removeChild(baseItem);
@@ -917,15 +1201,28 @@ class Board extends base_1.default {
         this._editable = true;
         this._mode = editmode_1.EditMode.None;
     }
+    addDock(dock) {
+        this.addToBoardItems(this._docks, dock);
+    }
     addNode(node) {
         node.selectable();
+        node.on('dragend', this.onNodeDragEnds.bind(this, node));
         this.addToBoardItems(this._nodes, node);
     }
     addLink(link) {
         this._links.push(link);
         this.appendChild(link);
     }
+    addLinkState(linkState) {
+        const { src, target, output_index, input_index } = linkState;
+        const link = new link_1.default(this._doc, this._nodes[src], output_index, this._nodes[target], input_index, {
+            editable: this._editable
+        });
+        this._links.push(link);
+        this.appendChild(link);
+    }
     addToBoardItems(arr, item) {
+        item.on('dragstart', () => this.reorderItems([item]));
         item.setIndex(arr.length);
         this.appendChild(item);
         arr.push(item);
@@ -933,6 +1230,9 @@ class Board extends base_1.default {
     }
     setMode(mode) {
         this._mode = mode;
+    }
+    setDocks(docks) {
+        docks.forEach((dock) => this.addDock(dock));
     }
     setNodes(nodes) {
         nodes.forEach((node) => this.addNode(node));
@@ -963,6 +1263,20 @@ class Board extends base_1.default {
             this.exitSelectionMode();
             onComplete(point);
         };
+    }
+    enterDockMode(onComplete = (point) => { }) {
+        this.enterSelectionMode((point) => {
+            const state = {
+                x: point.x - this._transformMatrix[4],
+                y: point.y - this._transformMatrix[5],
+                title: 'New State',
+                editable: this._editable,
+                nodes: [],
+            };
+            let dock = new dock_1.default(this._doc, state);
+            this.addDock(dock);
+            onComplete(point);
+        });
     }
     enterNodeMode(onComplete = (point) => { }) {
         this.enterSelectionMode((point) => {
@@ -1054,6 +1368,7 @@ class Board extends base_1.default {
     delete(item) {
         if (this._nodes.indexOf(item) >= 0) {
             this._nodes.splice(this._nodes.indexOf(item), 1);
+            item.off('dragend', this.onNodeDragEnds.bind(this, item));
             this._nodes.forEach((node, index) => node.setIndex(index));
         }
         else if (this._links.indexOf(item) >= 0) {
@@ -1071,247 +1386,182 @@ class Board extends base_1.default {
     get scale() {
         return this._scale;
     }
+    get nodeCount() {
+        return this._nodes.length;
+    }
+    get linkCount() {
+        return this._links.length;
+    }
 }
 exports.default = Board;
 
 
 /***/ }),
 
-/***/ "./src/displays/colorpalette.ts":
-/*!**************************************!*\
-  !*** ./src/displays/colorpalette.ts ***!
-  \**************************************/
+/***/ "./src/displays/dock.ts":
+/*!******************************!*\
+  !*** ./src/displays/dock.ts ***!
+  \******************************/
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
-class ColorPalette extends base_1.default {
-    constructor(doc) {
+const draggable_1 = __webpack_require__(/*! displays/abstract/draggable */ "./src/displays/abstract/draggable.ts");
+const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
+const { NODE_PADDING, DOCK_WIDTH, DOCK_HEIGHT, DOCK_COLOR, DOCK_TITLE_COLOR, DOCK_BORDER_COLOR } = config_1.default;
+const HEADER_HEIGHT = 34;
+const DOCK_NODE_HEIGHT = 28;
+const HALF_DOCK_NODE_HEIGHT = DOCK_NODE_HEIGHT / 2;
+const DOCK_NODE_PADDING = 15;
+class Dock extends draggable_1.default {
+    constructor(doc, state, nodes = []) {
         super();
+        const { width = DOCK_WIDTH, height = DOCK_HEIGHT, editable, nodes: nodeNums } = state;
         this._doc = doc;
-        this._hidden = true;
-        this.initialize();
+        this._width = width;
+        this._height = height;
+        this._editable = editable;
+        this._nodes = [];
+        this._state = state;
+        this.initialize(doc, state);
+        nodeNums.forEach((nodeId) => {
+            this.addNode(nodes[nodeId]);
+        });
+        this.on('drag', () => {
+            this._nodes.forEach(node => node.trigger('drag'));
+        });
     }
-    initialize() {
-        const { _doc, _hidden } = this;
-        let sel = this.elem = _doc.createElement('div');
-        sel.setAttribute('style', `position:absolute;background-color:white;box-shadow:rgba(60, 64, 67, 0.15) 0px 2px 6px 2px;padding:5px;width:162px;
-      ${_hidden ? 'visibility:hidden' : 'visibility:visible'}
-    `);
-        const rgb = [
-            ['#4d4d4d', '#999999', '#fff', '#f44e3b', '#fe9200', '#fcdc00', '#dbdf00', '#a4dd00', '#68ccca', '#73d8ff', '#aea1ff', '#fda1ff'],
-            ['#333', '#808080', '#ccc', '#d33115', '#e27300', '#fcc400', '#b0bc00', '#68bc00', '#16a5a5', '#68ccca', '#009ce0', '#7b64ff'],
-            ['#000', '#666', '#b3b3b3', '#9f0500', '#c45100', '#fb9e00', '#808900', '#194d33', '#0c797d', '#0062b1', '#653294', '#ab149e']
-        ];
-        for (let i = 0; i < 3; i++) {
-            for (let j = 0; j < 9; j++) {
-                var color = rgb[i][j];
-                var node = _doc.createElement('div');
-                node.setAttribute('class', 'btn palette');
-                if (color === '#fff') {
-                    node.setAttribute('style', `
-            width: 13px;
-            height: 13px;
-            border: solid 1px #ccc;
-            background-color: ${color};
-          `);
-                }
-                else {
-                    node.setAttribute('style', `
-            background-color: ${color};
-          `);
-                }
-                node.onclick = ((color) => (evt) => {
-                    evt.preventDefault();
-                    evt.stopPropagation();
-                    this.trigger('palette-select', color);
-                    this.hide();
-                })(color);
-                sel.appendChild(node);
-            }
-        }
-    }
-    toggle() {
-        (this._hidden) ? this.show() : this.hide();
-        return !this._hidden;
-    }
-    hide() {
-        this._hidden = true;
-        this.elem.style.visibility = 'hidden';
-    }
-    show() {
-        this._hidden = false;
-        this.elem.style.visibility = 'visible';
-    }
-}
-exports.default = ColorPalette;
-
-
-/***/ }),
-
-/***/ "./src/displays/draggable.ts":
-/*!***********************************!*\
-  !*** ./src/displays/draggable.ts ***!
-  \***********************************/
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
-const selectable_1 = __webpack_require__(/*! composite/selectable */ "./src/composite/selectable.ts");
-const getCoordsFromEvent = (ev) => {
-    if (ev.changedTouches) {
-        ev = ev.changedTouches[0];
-    }
-    return { x: ev.clientX, y: ev.clientY };
-};
-class Draggable extends base_1.default {
-    constructor() {
-        super();
-        this._enabled = false;
-        this._dragged = false;
-    }
-    draggable(el) {
-        this._enabled = true;
-        this.startDragFn = this.startDrag.bind(this);
-        this.dragFn = this.drag.bind(this);
-        this.endDragFn = this.endDrag.bind(this);
-        this.init(this.enabled, el);
-    }
-    init(enabled, el) {
-        el.addEventListener('mousedown', this.startDragFn);
-        el.addEventListener('touchstart', this.startDragFn, { passive: false });
-    }
-    startListening() {
-        this.elem.addEventListener('mousedown', this.startDragFn);
-        this.elem.addEventListener('touchstart', this.startDragFn, { passive: false });
-    }
-    stopListening() {
-        this.elem.removeEventListener('mousedown', this.startDragFn);
-        this.elem.removeEventListener('touchstart', this.startDragFn, { passive: false });
-    }
-    destroy() {
-        this.stopListening();
-    }
-    startDrag(evt) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        var clicked = getCoordsFromEvent(evt);
-        var rect = this.elem.getBoundingClientRect();
-        this._offset = {
-            x: clicked.x - rect.x,
-            y: clicked.y - rect.y
-        };
-        window.addEventListener('mousemove', this.dragFn);
-        window.addEventListener('touchmove', this.dragFn, { passive: false });
-        window.addEventListener('mouseup', this.endDragFn);
-        window.addEventListener('touchend', this.endDragFn, { passive: false });
-    }
-    drag(evt) {
-        this._dragged = true;
-        const offset = this._offset;
-        const coord = getCoordsFromEvent(evt);
-        const x = coord.x - offset.x;
-        const y = coord.y - offset.y;
-        const dx = x - this.x;
-        const dy = y - this.y;
+    initialize(doc, state) {
+        const { x = 0, y = 0, color = DOCK_COLOR, title = '' } = state;
+        let sel = this.elem = this.createSvgElement(doc, 'g');
         this.setXY({
             x: x,
             y: y
         });
-        this.trigger('drag', {
-            x: x,
-            y: y,
-            dx: dx,
-            dy: dy,
-        });
+        sel.setAttribute('transform', `translate(${x},${y})`);
+        let rect;
+        this._bg = rect = this.createSvgElement(doc, 'rect');
+        rect.setAttribute('width', this._width.toString());
+        rect.setAttribute('height', HEADER_HEIGHT.toString());
+        rect.setAttribute('rx', NODE_PADDING.toString());
+        rect.setAttribute('ry', NODE_PADDING.toString());
+        rect.setAttribute('style', `fill:rgba(0,0,0,0);`);
+        sel.appendChild(rect);
+        let foreignObject;
+        this._fo = foreignObject = this.createSvgElement(doc, 'foreignObject');
+        foreignObject.setAttribute('width', this._width - 2 * NODE_PADDING);
+        foreignObject.setAttribute('height', this._height - 2 * NODE_PADDING);
+        let text = this.createNonSvgElement(doc, 'div');
+        text.setAttribute('xmlns', "http://www.w3.org/1999/xhtml");
+        text.setAttribute('style', `font-size:11px;color:${DOCK_TITLE_COLOR};overflow:hidden;display:-webkit-box;border:1px solid ${DOCK_BORDER_COLOR};background-color:white;padding:9px ${DOCK_NODE_PADDING}px;border-radius:3px 3px 0 0;`);
+        text.innerHTML = title;
+        foreignObject.appendChild(text);
+        this._body = text = this.createNonSvgElement(doc, 'div');
+        text.setAttribute('xmlns', "http://www.w3.org/1999/xhtml");
+        text.setAttribute('style', `font-size:11px;color:${DOCK_COLOR};overflow:hidden;border:1px solid ${DOCK_BORDER_COLOR};background-color:#F8F8F8;padding:5px 12px;height:30px;border-radius:0 0 3px 3px;`);
+        foreignObject.appendChild(text);
+        sel.appendChild(foreignObject);
+        if (this._editable) {
+            this.draggable(sel);
+        }
     }
-    endDrag() {
-        if (!this._dragged)
-            this.trigger('clickonly');
-        this._dragged = false;
-        window.removeEventListener('mousemove', this.dragFn);
-        window.removeEventListener('touchmove', this.dragFn);
-        window.removeEventListener('mouseup', this.endDragFn);
-        window.removeEventListener('touchend', this.endDragFn);
+    subscribeToMouseOver(callback) {
+        this._bg.addEventListener('mouseover', callback, false);
+    }
+    unsubscribeToMouseOver(callback) {
+        this._bg.removeEventListener('mouseover', callback);
+    }
+    calcHeightByNodeIndex(index) {
+        return (index * (28 + NODE_PADDING)) + NODE_PADDING;
+    }
+    addNode(node) {
+        this._nodes.push(node);
+        node.dock(this);
+        const div = this.drawInnerDiv(node);
+        this._body.appendChild(div);
+        this.redrawBody();
+    }
+    removeNode(node) {
+        const index = this._nodes.indexOf(node);
+        this._nodes.splice(index, 1);
+        this._body.removeChild(this._body.childNodes[index]);
+        this.redrawBody();
+    }
+    redrawBody() {
+        const bodyHeight = this.calcHeightByNodeIndex(this._nodes.length);
+        this._body.style.height = `${bodyHeight}px`;
+        this._fo.setAttribute('height', bodyHeight + HEADER_HEIGHT);
+    }
+    drawInnerDiv(node) {
+        let div = this.createNonSvgElement(this._doc, 'div');
+        div.setAttribute('class', 'dock-node');
+        div.setAttribute('xmlns', "http://www.w3.org/1999/xhtml");
+        div.setAttribute('style', `color:${DOCK_TITLE_COLOR};overflow:hidden;background-color:white;width:calc(100% - 20px);height:16px;padding:5px 10px;border:1px solid #EFEFEF;text-overflow:ellipsis;white-space:nowrap;`);
+        div.innerHTML = node.title;
+        div.addEventListener('mousedown', (event) => {
+            this._nodeDrag = node;
+            event.stopPropagation();
+        });
+        div.addEventListener('mousemove', (event) => {
+            if (this._nodeDrag) {
+                node.undock(event);
+                this.removeNode(node);
+                this._nodeDrag = undefined;
+            }
+            event.stopPropagation();
+        });
+        return div;
+    }
+    setIndex(index) {
+        this._index = index;
     }
     setXY(point) {
-        this.x = point.x;
-        this.y = point.y;
-    }
-    isDragging() {
-        return this._dragged;
-    }
-    get x() {
-        return this._x;
-    }
-    set x(v) {
-        this._x = v;
-    }
-    get y() {
-        return this._y;
-    }
-    set y(v) {
-        this._y = v;
-    }
-    get enabled() {
-        return this._enabled;
-    }
-}
-exports.default = selectable_1.default(Draggable);
-
-
-/***/ }),
-
-/***/ "./src/displays/evented.ts":
-/*!*********************************!*\
-  !*** ./src/displays/evented.ts ***!
-  \*********************************/
-/***/ ((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-class Evented {
-    constructor() {
-        this._events = {};
-    }
-    _defaulted(name) {
-        if (!this._events[name]) {
-            this._events[name] = [];
+        super.setXY(point);
+        const svg = this._parent;
+        if (svg) {
+            let svgPoint = svg.createSVGPoint();
+            svgPoint.x = point.x;
+            svgPoint.y = point.y;
+            const invertedSVGMatrix = svg.getScreenCTM().inverse();
+            svgPoint = svgPoint.matrixTransform(invertedSVGMatrix);
+            this._setXY(svgPoint);
+        }
+        else {
+            this._setXY(point);
         }
     }
-    off(name, callback) {
-        this._defaulted(name);
-        var arr = this._events[name];
-        for (var i = arr.length - 1; i >= 0; i--) {
-            if (arr[i] === callback) {
-                arr.splice(i, 1);
-                break;
-            }
-        }
+    _setXY({ x, y }) {
+        this._state.x = x;
+        this._state.y = y;
+        this.elem.setAttributeNS(null, 'transform', `translate(${x},${y})`);
     }
-    on(name, callback) {
-        this._defaulted(name);
-        this._events[name].push(callback);
-    }
-    once(name, callback) {
-        this._defaulted(name);
-        let func = (...args) => {
-            callback.call(this, ...args);
-            this.off(name, func);
+    getInputCoord(node) {
+        const index = this._nodes.indexOf(node);
+        return {
+            x: this._state.x + DOCK_NODE_PADDING,
+            y: this._state.y + HEADER_HEIGHT + this.calcHeightByNodeIndex(index) + HALF_DOCK_NODE_HEIGHT,
         };
-        this._events[name].push(func);
     }
-    trigger(name, ...args) {
-        if (this._events[name]) {
-            this._events[name].forEach((_) => {
-                _.call(this, ...args);
-            });
-        }
+    getOutputCoord(node) {
+        const index = this._nodes.indexOf(node);
+        return {
+            x: this._state.x + NODE_PADDING,
+            y: this._state.y + HEADER_HEIGHT + this.calcHeightByNodeIndex(index) + HALF_DOCK_NODE_HEIGHT,
+        };
+    }
+    exportAsJson() {
+        const { editable, x, y, title, nodes } = this._state;
+        const state = {
+            "title": title,
+            "x": x,
+            "y": y,
+            "editable": editable,
+            "nodes": nodes,
+        };
+        return state;
     }
 }
-exports.default = Evented;
+exports.default = Dock;
 
 
 /***/ }),
@@ -1324,7 +1574,7 @@ exports.default = Evented;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
 class SvgTable extends base_1.default {
     generate(doc, header = [], rows = []) {
         const inner = `<table xmlns="http://www.w3.org/2000/svg" class="paper tb">
@@ -1336,8 +1586,8 @@ class SvgTable extends base_1.default {
         }).join('')}</tbody>
     </table>`;
         const fo = this.createDomElement(doc, 'foreignObject', inner);
-        fo.setAttribute('width', 420);
-        fo.setAttribute('height', 70 + rows.length * 40);
+        fo.setAttribute('width', String(420));
+        fo.setAttribute('height', String(70 + rows.length * 40));
         return fo;
     }
 }
@@ -1354,7 +1604,7 @@ exports.default = new SvgTable();
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const base_1 = __webpack_require__(/*! displays/base */ "./src/displays/base.ts");
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
 const selectable_1 = __webpack_require__(/*! composite/selectable */ "./src/composite/selectable.ts");
 const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
 const { NODE_HEIGHT, LINK_COLOR, LINK_SELECTED_COLOR, LINK_ARROW_WIDTH, NODE_IO_SIZE } = config_1.default;
@@ -1473,7 +1723,7 @@ exports.default = Link;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const evented_1 = __webpack_require__(/*! displays/evented */ "./src/displays/evented.ts");
+const evented_1 = __webpack_require__(/*! displays/abstract/evented */ "./src/displays/abstract/evented.ts");
 class Mouse extends evented_1.default {
     constructor(offset) {
         super();
@@ -1548,9 +1798,9 @@ exports.default = Mouse;
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const draggable_1 = __webpack_require__(/*! displays/draggable */ "./src/displays/draggable.ts");
-const svg_1 = __webpack_require__(/*! displays/svg */ "./src/displays/svg.ts");
+const draggable_1 = __webpack_require__(/*! displays/abstract/draggable */ "./src/displays/abstract/draggable.ts");
 const svgtable_1 = __webpack_require__(/*! displays/graphics/svgtable */ "./src/displays/graphics/svgtable.ts");
+const svg_1 = __webpack_require__(/*! constants/svg */ "./src/constants/svg.ts");
 const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
 const { NODE_WIDTH, NODE_HEIGHT, NODE_COLOR, NODE_DISABLED_COLOR, NODE_BORDER_COLOR, NODE_TEXT_COLOR, NODE_STROKE_WEIGHT, NODE_PADDING, NODE_IO_SIZE, NODE_IO_SPACING, NODE_CONNECTOR_BORDER_COLOR, NODE_IO_HOVER_COLOR, NODE_IO_CONNECTOR_COLOR, BORDER_WIDTH, } = config_1.default;
 class Node extends draggable_1.default {
@@ -1914,10 +2164,9 @@ class Node extends draggable_1.default {
     }
     exportAsJson() {
         const { x, y, title, color, description = '' } = this._config;
-        return {
+        const state = {
             "title": title,
             "description": description,
-            "color": color,
             "x": x,
             "y": y,
             "editable": this._editable,
@@ -1925,13 +2174,26 @@ class Node extends draggable_1.default {
             "inputs": this._inputs,
             "outputs": this._outputs
         };
+        if (color)
+            state.color = color;
+        return state;
     }
     getInputCoord(index) {
         const { x = 0, y = 0 } = this._config;
-        return this.selected ? this.getInputCoordByIndex(index) : {
-            x: x,
-            y: y + (this._height / 2),
-        };
+        let coord;
+        if (this.isDocked()) {
+            coord = this._dock.getInputCoord(this);
+        }
+        else if (this.selected) {
+            coord = this.getInputCoordByIndex(index);
+        }
+        else {
+            coord = {
+                x: x,
+                y: y + (this._height / 2),
+            };
+        }
+        return coord;
     }
     getInputCoordByIndex(index) {
         const { x = 0, y = 0 } = this._config;
@@ -1943,10 +2205,20 @@ class Node extends draggable_1.default {
     }
     getOutputCoord(index) {
         const { x = 0, y = 0 } = this._config;
-        return this.selected ? this.getOutputCoordByIndex(index) : {
-            x: x + this._width,
-            y: y + (this._height / 2),
-        };
+        let coord;
+        if (this.isDocked()) {
+            coord = this._dock.getOutputCoord(this);
+        }
+        else if (this.selected) {
+            coord = this.getOutputCoordByIndex(index);
+        }
+        else {
+            coord = {
+                x: x + this._width,
+                y: y + (this._height / 2),
+            };
+        }
+        return coord;
     }
     getOutputCoordByIndex(index) {
         const { x = 0, y = 0 } = this._config;
@@ -2065,8 +2337,27 @@ class Node extends draggable_1.default {
         };
         return div;
     }
+    dock(dock) {
+        this._dock = dock;
+        this.elem.setAttribute('visibility', 'hidden');
+        this.trigger('drag');
+    }
+    undock(event) {
+        const coord = this.getCoordsFromEvent(event);
+        this.setXY(coord);
+        this.startDragFn(event);
+        this.drag(event);
+        this._dock = undefined;
+        this.elem.removeAttribute('visibility');
+    }
+    isDocked() {
+        return this._dock !== undefined;
+    }
     get outputCount() {
         return this._outputCount;
+    }
+    get title() {
+        return this._config.title;
     }
 }
 exports.default = Node;
@@ -2074,39 +2365,132 @@ exports.default = Node;
 
 /***/ }),
 
-/***/ "./src/displays/svg.ts":
-/*!*****************************!*\
-  !*** ./src/displays/svg.ts ***!
-  \*****************************/
-/***/ ((__unused_webpack_module, exports) => {
+/***/ "./src/menu/button.ts":
+/*!****************************!*\
+  !*** ./src/menu/button.ts ***!
+  \****************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FormatColorText = exports.FormatColorFill = exports.ZoomOut = exports.ZoomIn = exports.Redo = exports.Undo = exports.Stop = exports.Pause = exports.Play = exports.CancelInRed = exports.Add = exports.Delete = exports.ArrowForward = exports.ArrowUp = exports.ArrowDown = exports.MoreVert = void 0;
-const PathToSvgIcon = (d, size, className = '', style = '') => {
-    const MENU_CLASS = `class="${className}"`;
-    const STYLE = `style="${style}"`;
-    const ICON_SIZE = `width="${size}" height="${size}"`;
-    return `<svg ${MENU_CLASS} ${STYLE} viewBox="0 0 24 24" ${ICON_SIZE}><g><g><path d="${d}"/></g></g></svg>`;
-};
-const MuiSize = 18;
-const MuiPathToSvgIcon = (d, { className = '', style = '' } = {}) => PathToSvgIcon(d, MuiSize, className, style);
-exports.MoreVert = MuiPathToSvgIcon("M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z");
-exports.ArrowDown = MuiPathToSvgIcon("M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z");
-exports.ArrowUp = MuiPathToSvgIcon("M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z");
-exports.ArrowForward = MuiPathToSvgIcon("M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z");
-exports.Delete = MuiPathToSvgIcon("M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z");
-exports.Add = MuiPathToSvgIcon("M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z");
-exports.CancelInRed = MuiPathToSvgIcon("M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z", { style: "fill:#E21B1B;" });
-exports.Play = MuiPathToSvgIcon("M8 5v14l11-7z");
-exports.Pause = MuiPathToSvgIcon("M6 19h4V5H6v14zm8-14v14h4V5h-4z");
-exports.Stop = MuiPathToSvgIcon("M6 6h12v12H6z");
-exports.Undo = MuiPathToSvgIcon("M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z");
-exports.Redo = MuiPathToSvgIcon("M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z");
-exports.ZoomIn = MuiPathToSvgIcon("M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z");
-exports.ZoomOut = MuiPathToSvgIcon("M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z");
-exports.FormatColorFill = MuiPathToSvgIcon("M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z");
-exports.FormatColorText = MuiPathToSvgIcon("M11 3L5.5 17h2.25l1.12-3h6.25l1.12 3h2.25L13 3h-2zm-1.38 9L12 5.67 14.38 12H9.62z");
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
+class Button extends base_1.default {
+    constructor(opts) {
+        super();
+        const { id, doc, svg, tooltip, onClick, execFn, cancelFn, cancelSvg = '', enable = true } = opts;
+        let sel = this.elem = this.createDomElement(doc, 'div', svg, cancelSvg);
+        sel.setAttribute('id', id);
+        sel.setAttribute('class', 'clay-mb e');
+        const tooltipElem = this.createDomElement(doc, 'span', tooltip);
+        tooltipElem.setAttribute('class', 'tooltiptext');
+        sel.appendChild(tooltipElem);
+        sel._svg = sel.innerHTML;
+        Object.entries({
+            'onclick': onClick,
+        }).forEach(([name, fn]) => {
+            if (fn) {
+                sel[name] = fn;
+            }
+        });
+        this.execFn = execFn;
+        this.cancelFn = cancelFn;
+        enable ? this.enable() : this.disable();
+    }
+    registerEvt(evt, fn) {
+        this.elem[evt] = fn;
+    }
+    isEnable() {
+        return this._enable;
+    }
+    enable() {
+        this._enable = true;
+        this.elem.setAttribute('class', 'clay-mb e');
+    }
+    disable() {
+        this._enable = false;
+        this.elem.setAttribute('class', 'clay-mb s');
+    }
+    toDefaultView() {
+        this.elem.innerHTML = this.elem._svg;
+    }
+    toCancelView() {
+        this.elem.innerHTML = this.elem._cancel;
+    }
+}
+exports.default = Button;
+
+
+/***/ }),
+
+/***/ "./src/menu/colorpalette.ts":
+/*!**********************************!*\
+  !*** ./src/menu/colorpalette.ts ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const base_1 = __webpack_require__(/*! displays/abstract/base */ "./src/displays/abstract/base.ts");
+class ColorPalette extends base_1.default {
+    constructor(doc) {
+        super();
+        this._doc = doc;
+        this._hidden = true;
+        this.initialize();
+    }
+    initialize() {
+        const { _doc, _hidden } = this;
+        let sel = this.elem = _doc.createElement('div');
+        sel.setAttribute('style', `position:absolute;background-color:white;box-shadow:rgba(60, 64, 67, 0.15) 0px 2px 6px 2px;padding:5px;width:162px;
+      ${_hidden ? 'visibility:hidden' : 'visibility:visible'}
+    `);
+        const rgb = [
+            ['#4d4d4d', '#999999', '#fff', '#f44e3b', '#fe9200', '#fcdc00', '#dbdf00', '#a4dd00', '#68ccca', '#73d8ff', '#aea1ff', '#fda1ff'],
+            ['#333', '#808080', '#ccc', '#d33115', '#e27300', '#fcc400', '#b0bc00', '#68bc00', '#16a5a5', '#68ccca', '#009ce0', '#7b64ff'],
+            ['#000', '#666', '#b3b3b3', '#9f0500', '#c45100', '#fb9e00', '#808900', '#194d33', '#0c797d', '#0062b1', '#653294', '#ab149e']
+        ];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 9; j++) {
+                var color = rgb[i][j];
+                var node = _doc.createElement('div');
+                node.setAttribute('class', 'btn palette');
+                if (color === '#fff') {
+                    node.setAttribute('style', `
+            width: 13px;
+            height: 13px;
+            border: solid 1px #ccc;
+            background-color: ${color};
+          `);
+                }
+                else {
+                    node.setAttribute('style', `
+            background-color: ${color};
+          `);
+                }
+                node.onclick = ((color) => (evt) => {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    this.trigger('palette-select', color);
+                    this.hide();
+                })(color);
+                sel.appendChild(node);
+            }
+        }
+    }
+    toggle() {
+        (this._hidden) ? this.show() : this.hide();
+        return !this._hidden;
+    }
+    hide() {
+        this._hidden = true;
+        this.elem.style.visibility = 'hidden';
+    }
+    show() {
+        this._hidden = false;
+        this.elem.style.visibility = 'visible';
+    }
+}
+exports.default = ColorPalette;
 
 
 /***/ })
@@ -2175,9 +2559,12 @@ var __webpack_exports__ = {};
   \******************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "validate": () => (/* binding */ validate),
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var _src_clay__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./src/clay */ "./src/clay.ts");
+
+var validate = _src_clay__WEBPACK_IMPORTED_MODULE_0__.default.validate;
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_src_clay__WEBPACK_IMPORTED_MODULE_0__.default);
 })();

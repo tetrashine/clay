@@ -325,6 +325,7 @@ class Board extends Base {
   }
 
   addToBoardItems(arr: any[], item: any): void {
+    item.on('dragstart', () => this.reorderItems([item]));
     item.setIndex(arr.length);
     this.appendChild(item);
     arr.push(item);
@@ -375,6 +376,23 @@ class Board extends Base {
       this.exitSelectionMode();
       onComplete(point);
     };
+  }
+
+  enterDockMode(onComplete=(point: Point)=>{}): void {
+    this.enterSelectionMode((point: Point) => {
+      const state: DockState = {
+        x: point.x - this._transformMatrix[4],
+        y: point.y - this._transformMatrix[5],
+        title: 'New State',
+        editable: this._editable,
+        nodes: [],
+      };
+
+      let dock: Dock = new Dock(this._doc, state);
+      this.addDock(dock);
+  
+      onComplete(point);
+    });
   }
 
   enterNodeMode(onComplete=(point: Point)=>{}): void {

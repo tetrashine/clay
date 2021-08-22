@@ -25,7 +25,7 @@ import {KeyCode} from 'constants/keycode';
 import {EditMode} from 'constants/editmode';
 import {ZoomMode} from 'constants/zoommode';
 
-import { NodeConfig, LinkState, BoardConfig, BoardState } from 'types/index';
+import { DockState, NodeConfig, LinkState, BoardConfig, BoardState } from 'types/index';
 //#endregion
 
 //#region SVG Decalations
@@ -174,14 +174,26 @@ class Clay extends Base {
   }
 
   static validate(state: BoardState): boolean { 
-    const { title, nodes, links } = state;
+    const { title, docks, nodes, links } = state;
     
     return (
       typeof(title) === 'string'
+      && Array.isArray(docks)
+      && docks.every(Clay.validateDock)
       && Array.isArray(nodes)
       && nodes.every(Clay.validateNode)
       && Array.isArray(links)
       && links.every(Clay.validateLink)
+    );
+  }
+
+  static validateDock(state: DockState): boolean {
+    const { x, y, title, nodes } = state;
+    return (
+      typeof(title) === 'string'
+      && typeof(x) === 'number'
+      && typeof(y) === 'number'
+      && Array.isArray(nodes)
     );
   }
 
@@ -458,10 +470,10 @@ class Clay extends Base {
         cancelSvg: CANCEL_SVG, 
         tooltip: 'New dock', 
         execFn: () => {
-          
+          this._board.enterDockMode(this._ActionFunctions.onExecCompleteFn);
         },
         cancelFn: () => {
-          
+          this._board.exitSelectionMode();
         }
       });
       dockBtn.registerEvt('onclick', this.onMenuBtnClick(EditMode.ZoomIn, dockBtn).bind(this));
