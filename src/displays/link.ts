@@ -89,6 +89,7 @@ class Link extends SelectableHOC(Base) {
 	destroy(): void {
 		this._src.deleteLink(this);
 		this._target.deleteLink(this);
+		this._src = this._target = undefined;
 		this.remove();
 	}
 

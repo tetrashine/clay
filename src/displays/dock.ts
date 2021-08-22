@@ -4,7 +4,7 @@ import Node from 'displays/node';
 
 import { default as config } from 'constants/config';
 const {
-  NODE_PADDING, DOCK_WIDTH, DOCK_HEIGHT, DOCK_COLOR, DOCK_TITLE_COLOR, DOCK_BORDER_COLOR
+  NODE_PADDING, DOCK_COLOR, DOCK_TITLE_COLOR, DOCK_BORDER_COLOR, DOCK_WIDTH
 } = config;
 
 const HEADER_HEIGHT: number = 34;
@@ -26,7 +26,7 @@ export default class Dock extends Draggable {
 
   constructor(doc: any, state: DockState, nodes: Node[] = []) {
     super();
-    const {width=DOCK_WIDTH, height=DOCK_HEIGHT, editable, nodes: nodeNums} = state;
+    const {width=DOCK_WIDTH, height, editable, nodes: nodeNums} = state;
     this._doc = doc;
     this._width = width;
     this._height = height;
@@ -42,6 +42,34 @@ export default class Dock extends Draggable {
 
     this.on('drag', () => {
       this._nodes.forEach(node => node.trigger('drag'));
+    });
+  }
+
+  destroy(): void {  
+    this._nodes.forEach((node: Node) => node.destroy());
+    this._nodes = [];
+    this.remove();
+  }
+
+  select(): void {
+    super.select();
+
+    //draw selected highlight
+    let rect: any = this.createSvgElement(this._doc, 'rect');
+    rect.setAttribute('class', 'highlight');
+    rect.setAttribute('width', this._width);
+    rect.setAttribute('height', this._height);
+    this.elem.appendChild(rect);
+  }
+
+  unselect(): void {
+    super.unselect();
+
+    ['.highlight'].forEach(id => {
+      const elem: any = this.elem.querySelector(id);
+      if (elem !== null) {
+        this.elem.removeChild(elem);
+      }
     });
   }
 
@@ -65,8 +93,7 @@ export default class Dock extends Draggable {
 
     let foreignObject: any 
     this._fo = foreignObject = this.createSvgElement(doc, 'foreignObject');
-    foreignObject.setAttribute('width', this._width-2*NODE_PADDING);
-    foreignObject.setAttribute('height', this._height-2*NODE_PADDING);
+    foreignObject.setAttribute('width', this._width);
 
     let text: HTMLElement = this.createNonSvgElement(doc, 'div');
     //text.setAttribute('contenteditable', 'true');
@@ -123,6 +150,8 @@ export default class Dock extends Draggable {
     const bodyHeight: number = this.calcHeightByNodeIndex(this._nodes.length);
     this._body.style.height = `${bodyHeight}px`;
     this._fo.setAttribute('height', bodyHeight + HEADER_HEIGHT);
+
+    this._height = HEADER_HEIGHT + bodyHeight;
   }
 
   drawInnerDiv(node: Node): HTMLElement {

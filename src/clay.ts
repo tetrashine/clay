@@ -354,7 +354,7 @@ class Clay extends Base {
       switch(e.keyCode) {
         case KeyCode.Delete://Delete
             this._palettes.forEach((_: ColorPalette) => _.hide());
-            this._selected.forEach(_ => this._board.delete(_));
+            this._board.deleteSelected();
             this._selected = [];
             this.menuCalibration();
           break;

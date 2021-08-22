@@ -5,7 +5,6 @@ const SelectableHOC = (BaseClass: any) => {
     private _selected: boolean;
 
     constructor(...args: any[]) {
-      // @ts-ignore: generic spread
       super(...args);
       this._clickFn = ():void => {
         this.trigger('click', this);

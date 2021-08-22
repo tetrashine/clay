@@ -266,7 +266,7 @@ class Clay extends base_1.default {
             switch (e.keyCode) {
                 case keycode_1.KeyCode.Delete:
                     this._palettes.forEach((_) => _.hide());
-                    this._selected.forEach(_ => this._board.delete(_));
+                    this._board.deleteSelected();
                     this._selected = [];
                     this.menuCalibration();
                     break;
@@ -657,7 +657,6 @@ const Config = {
     HIGHLIGHT_BORDER_COLOR: '#2196f3',
     HIGHLIGHT_BG_COLOR: 'rgba(33,150,243,.15)',
     DOCK_WIDTH: 160,
-    DOCK_HEIGHT: 85,
     DOCK_COLOR: '#F8F8F8',
     DOCK_TITLE_COLOR: '#8D8D8B',
     DOCK_BORDER_COLOR: '#E9E9E9',
@@ -1159,7 +1158,9 @@ class Board extends base_1.default {
                 this.unselectItems();
                 this.elem.getIntersectionList(svgRect, null).forEach((_) => {
                     const node = _.node || _.parentNode.node;
-                    if (node && node instanceof node_1.default) {
+                    if (node && (node instanceof node_1.default
+                        || node instanceof link_1.default
+                        || node instanceof dock_1.default)) {
                         node.select();
                         node.on('drag', this.onNodeDrag.bind(this, node));
                         this._selected.push(node);
@@ -1269,7 +1270,7 @@ class Board extends base_1.default {
             const state = {
                 x: point.x - this._transformMatrix[4],
                 y: point.y - this._transformMatrix[5],
-                title: 'New State',
+                title: 'Dock',
                 editable: this._editable,
                 nodes: [],
             };
@@ -1283,7 +1284,7 @@ class Board extends base_1.default {
             const config = {
                 x: point.x - this._transformMatrix[4],
                 y: point.y - this._transformMatrix[5],
-                title: 'New Title',
+                title: 'Title',
                 editable: this._editable,
                 inputs: [],
                 outputs: []
@@ -1365,6 +1366,10 @@ class Board extends base_1.default {
             y: scalePoint.y / scale,
         });
     }
+    deleteSelected() {
+        this._selected.forEach(_ => this.delete(_));
+        this._selected = [];
+    }
     delete(item) {
         if (this._nodes.indexOf(item) >= 0) {
             this._nodes.splice(this._nodes.indexOf(item), 1);
@@ -1408,7 +1413,7 @@ exports.default = Board;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const draggable_1 = __webpack_require__(/*! displays/abstract/draggable */ "./src/displays/abstract/draggable.ts");
 const config_1 = __webpack_require__(/*! constants/config */ "./src/constants/config.ts");
-const { NODE_PADDING, DOCK_WIDTH, DOCK_HEIGHT, DOCK_COLOR, DOCK_TITLE_COLOR, DOCK_BORDER_COLOR } = config_1.default;
+const { NODE_PADDING, DOCK_COLOR, DOCK_TITLE_COLOR, DOCK_BORDER_COLOR, DOCK_WIDTH } = config_1.default;
 const HEADER_HEIGHT = 34;
 const DOCK_NODE_HEIGHT = 28;
 const HALF_DOCK_NODE_HEIGHT = DOCK_NODE_HEIGHT / 2;
@@ -1416,7 +1421,7 @@ const DOCK_NODE_PADDING = 15;
 class Dock extends draggable_1.default {
     constructor(doc, state, nodes = []) {
         super();
-        const { width = DOCK_WIDTH, height = DOCK_HEIGHT, editable, nodes: nodeNums } = state;
+        const { width = DOCK_WIDTH, height, editable, nodes: nodeNums } = state;
         this._doc = doc;
         this._width = width;
         this._height = height;
@@ -1429,6 +1434,28 @@ class Dock extends draggable_1.default {
         });
         this.on('drag', () => {
             this._nodes.forEach(node => node.trigger('drag'));
+        });
+    }
+    destroy() {
+        this._nodes.forEach((node) => node.destroy());
+        this._nodes = [];
+        this.remove();
+    }
+    select() {
+        super.select();
+        let rect = this.createSvgElement(this._doc, 'rect');
+        rect.setAttribute('class', 'highlight');
+        rect.setAttribute('width', this._width);
+        rect.setAttribute('height', this._height);
+        this.elem.appendChild(rect);
+    }
+    unselect() {
+        super.unselect();
+        ['.highlight'].forEach(id => {
+            const elem = this.elem.querySelector(id);
+            if (elem !== null) {
+                this.elem.removeChild(elem);
+            }
         });
     }
     initialize(doc, state) {
@@ -1449,8 +1476,7 @@ class Dock extends draggable_1.default {
         sel.appendChild(rect);
         let foreignObject;
         this._fo = foreignObject = this.createSvgElement(doc, 'foreignObject');
-        foreignObject.setAttribute('width', this._width - 2 * NODE_PADDING);
-        foreignObject.setAttribute('height', this._height - 2 * NODE_PADDING);
+        foreignObject.setAttribute('width', this._width);
         let text = this.createNonSvgElement(doc, 'div');
         text.setAttribute('xmlns', "http://www.w3.org/1999/xhtml");
         text.setAttribute('style', `font-size:11px;color:${DOCK_TITLE_COLOR};overflow:hidden;display:-webkit-box;border:1px solid ${DOCK_BORDER_COLOR};background-color:white;padding:9px ${DOCK_NODE_PADDING}px;border-radius:3px 3px 0 0;`);
@@ -1491,6 +1517,7 @@ class Dock extends draggable_1.default {
         const bodyHeight = this.calcHeightByNodeIndex(this._nodes.length);
         this._body.style.height = `${bodyHeight}px`;
         this._fo.setAttribute('height', bodyHeight + HEADER_HEIGHT);
+        this._height = HEADER_HEIGHT + bodyHeight;
     }
     drawInnerDiv(node) {
         let div = this.createNonSvgElement(this._doc, 'div');
@@ -1666,6 +1693,7 @@ class Link extends selectable_1.default(base_1.default) {
     destroy() {
         this._src.deleteLink(this);
         this._target.deleteLink(this);
+        this._src = this._target = undefined;
         this.remove();
     }
     exportAsJson() {
@@ -1862,11 +1890,13 @@ class Node extends draggable_1.default {
     deleteLink(link) {
         const inputIndex = this._inputLinks.indexOf(link);
         const outputIndex = this._outputLinks.indexOf(link);
+        const linkIndex = this._links.indexOf(link);
         if (inputIndex >= 0)
             this._inputLinks.splice(inputIndex, 1);
         if (outputIndex >= 0)
             this._outputLinks.splice(outputIndex, 1);
-        this._links.splice(this._links.indexOf(link), 1);
+        if (linkIndex >= 0)
+            this._links.splice(linkIndex, 1);
     }
     setFillColor(color = NODE_COLOR) {
         this._bg.setAttribute('style', `fill:${color};stroke-width:${NODE_STROKE_WEIGHT};stroke:${NODE_BORDER_COLOR};filter:drop-shadow(0px 1px 1px rgba(0,0,0,.4));`);
@@ -1912,9 +1942,10 @@ class Node extends draggable_1.default {
         }
     }
     destroy() {
-        this._links.forEach(link => {
-            link.destroy();
-        });
+        this._dock = undefined;
+        while (this._links.length > 0) {
+            this._links[0].destroy();
+        }
         this.remove();
         this.off('drag', this._dragFn);
     }

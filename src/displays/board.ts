@@ -246,8 +246,12 @@ class Board extends Base {
         this.unselectItems();
 
         this.elem.getIntersectionList(svgRect, null).forEach((_: any) => {
-          const node: (Node | Board) = _.node || _.parentNode.node;
-          if (node && node instanceof Node) {
+          const node = _.node || _.parentNode.node;
+          if (node && (
+              node instanceof Node
+              || node instanceof Link
+              || node instanceof Dock
+            )) {
             node.select();
             node.on('drag', this.onNodeDrag.bind(this, node));
             this._selected.push(node);
@@ -383,7 +387,7 @@ class Board extends Base {
       const state: DockState = {
         x: point.x - this._transformMatrix[4],
         y: point.y - this._transformMatrix[5],
-        title: 'New State',
+        title: 'Dock',
         editable: this._editable,
         nodes: [],
       };
@@ -400,7 +404,7 @@ class Board extends Base {
       const config: NodeConfig = {
         x: point.x - this._transformMatrix[4],
         y: point.y - this._transformMatrix[5],
-        title: 'New Title',
+        title: 'Title',
         editable: this._editable,
         inputs: [],
         outputs: []
@@ -502,6 +506,11 @@ class Board extends Base {
       x: scalePoint.x / scale,
       y: scalePoint.y / scale,
     });
+  }
+
+  deleteSelected(): void {
+    this._selected.forEach(_ => this.delete(_));
+    this._selected = [];
   }
 
   delete(item: any): void {

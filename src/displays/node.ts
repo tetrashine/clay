@@ -105,11 +105,11 @@ class Node extends Draggable implements INode  {
   deleteLink(link: Link): void {
     const inputIndex = this._inputLinks.indexOf(link);
     const outputIndex = this._outputLinks.indexOf(link);
+    const linkIndex = this._links.indexOf(link);
 
     if (inputIndex >= 0) this._inputLinks.splice(inputIndex, 1);
     if (outputIndex >= 0) this._outputLinks.splice(outputIndex, 1);
-
-    this._links.splice(this._links.indexOf(link), 1);
+    if (linkIndex >= 0) this._links.splice(linkIndex, 1);
   }
 
   setFillColor(color: string = NODE_COLOR): void {
@@ -166,11 +166,14 @@ class Node extends Draggable implements INode  {
     }
   }
 
-  destroy(): void {  
+  destroy(): void {
+
+    this._dock = undefined;
+
     //remove related links
-    this._links.forEach(link => {
-      link.destroy();
-    });
+    while(this._links.length > 0) {
+      this._links[0].destroy();
+    }
 
     this.remove();
 
