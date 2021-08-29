@@ -3,11 +3,15 @@ import { expect } from '@jest/globals';
 import Clay from '../src/clay'
 
 describe('Clay', () => {
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
   
   test('load', () => {
     document.body.innerHTML = `<div id="board"></div>`;
     const state = {
-      "title": '', "nodes": [], "links": []
+      "title": '', "docks": [], "nodes": [], "links": []
     };
 
     const clay = new Clay('board', {
@@ -19,6 +23,7 @@ describe('Clay', () => {
       executable: false,
     }, state);
 
+    expect(document.getElementById('dock')).toBeNull();
     expect(document.getElementById('node')).toBeNull();
     expect(document.getElementById('link')).toBeNull();
     expect(document.getElementById('undo')).toBeNull();
@@ -42,6 +47,7 @@ describe('Clay', () => {
       executable: true,
     }, state);
 
+    expect(document.getElementById('dock')).toBeDefined();
     expect(document.getElementById('node')).toBeDefined();
     expect(document.getElementById('link')).toBeDefined();
     expect(document.getElementById('undo')).toBeDefined();
@@ -60,11 +66,17 @@ describe('Clay', () => {
   test('loadState', () => {
     document.body.innerHTML = `<div id="board"></div>`;
     const emptyState = {
-      "title": '', "nodes": [], "links": []
+      "title": '', "docks": [], "nodes": [], "links": []
     };
     const state = {
       "title": "Demo Board",
       "editable": true,
+      "docks": [{
+        "x": 55, 
+        "y": 55, 
+        "title": "To-Do",
+        "nodes": [0],
+      }], 
       "nodes": [{
         "title": "Hello World 123 123",
         "description": "", 
@@ -139,11 +151,13 @@ describe('Clay', () => {
       height: 100,
     }, state);
 
+    expect(clay.dockCount).toEqual(1);
     expect(clay.nodeCount).toEqual(5);
     expect(clay.linkCount).toEqual(2);
 
     clay.loadState(emptyState);
 
+    expect(clay.dockCount).toEqual(0);
     expect(clay.nodeCount).toEqual(0);
     expect(clay.linkCount).toEqual(0);
   });
@@ -151,6 +165,7 @@ describe('Clay', () => {
   test('validate', () => {
     const minimum = {
       "title": "",
+      "docks": [],
       "nodes": [],
       "links":[]
     };
@@ -161,11 +176,13 @@ describe('Clay', () => {
     const fail2 = { "title": "", "links":[] };
     const fail3 = { "nodes": [] , "links": [] };
     const fail4 = { "title": 1, "nodes": 1, "links": 1 };
+    const fail5 = { "title": "", "docks": [] };
 
     expect(Clay.validate(fail1)).toBe(false);
     expect(Clay.validate(fail2)).toBe(false);
     expect(Clay.validate(fail3)).toBe(false);
     expect(Clay.validate(fail4)).toBe(false);
+    expect(Clay.validate(fail5)).toBe(false);
   });
 
   test('export', () => {
@@ -173,6 +190,13 @@ describe('Clay', () => {
     const state = {
       "title": "Demo Board",
       "editable": true,
+      "docks": [{
+        "x": 55, 
+        "y": 55, 
+        "editable": true,
+        "title": "To-Do",
+        "nodes": [0],
+      }],
       "nodes": [{
         "title": "Hello World 123 123",
         "description": "", 
@@ -246,7 +270,6 @@ describe('Clay', () => {
       width: 100, 
       height: 100,
     }, state);
-
     expect(state).toEqual(clay.export());
   });
 
@@ -255,6 +278,7 @@ describe('Clay', () => {
     const state = {
       "title": "Demo Board",
       "editable": true,
+      "docks": [],
       "nodes": [{
         "title": "Hello World 123 123",
         "description": "", 
@@ -339,7 +363,7 @@ describe('Clay', () => {
   test('addNode', () => {
     document.body.innerHTML = `<div id="board"></div>`;
     const state = {
-      "title": '', "nodes": [], "links": []
+      "title": '', "docks": [], "nodes": [], "links": []
     };
 
     const clay = new Clay('board', {
@@ -373,6 +397,97 @@ describe('Clay', () => {
     expect(clay.nodeCount).toEqual(1);
   });
 
+  test('deleteNode', () => {
+    document.body.innerHTML = `<div id="board"></div>`;
+    const emptyState = {
+      "title": '', "docks": [], "nodes": [], "links": []
+    };
+    const state = {
+      "title": "Demo Board",
+      "editable": true,
+      "docks": [], 
+      "nodes": [{
+        "title": "Hello World 123 123",
+        "description": "", 
+        "editable": true,
+        "x":50,
+        "y":50,
+        "inputs": [],
+        "outputs": ["string"],
+        "attrs": []
+      }],
+      "links":[]
+    };
+    const clay = new Clay('board', {
+      width: 100, 
+      height: 100,
+    }, state);
+
+    expect(clay.nodeCount).toEqual(1);
+
+    clay.deleteNode(0);
+
+    expect(clay.nodeCount).toEqual(0);
+  });
+
+  test('addDock', () => {
+    document.body.innerHTML = `<div id="board"></div>`;
+    const state = {
+      "title": '', "docks": [], "nodes": [], "links": []
+    };
+
+    const clay = new Clay('board', {
+      width: 100, height: 100,
+      editable: false, 
+      zoomable: false, 
+      colorize: false, 
+      exportable: false,
+      executable: false,
+    }, state);
+
+    expect(clay.dockCount).toEqual(0);
+
+    const success = clay.addDock({
+      "title": "To-Do",
+      "editable": true,
+      "x":50,
+      "y":50,
+    })
+
+    expect(success).toEqual(true);
+    expect(clay.dockCount).toEqual(1);
+
+    const fail = clay.addDock({})
+
+    expect(fail).toEqual(false);
+    expect(clay.dockCount).toEqual(1);
+  });
+
+  test('deleteDock', () => {
+    const state = {
+      "title": "Demo Board",
+      "editable": true,
+      "docks": [{
+        "x": 55, 
+        "y": 55, 
+        "title": "To-Do",
+        "nodes": [],
+      }], 
+      "nodes": [],
+      "links": []
+    };
+
+    const clay = new Clay('board', {
+      width: 100, 
+      height: 100,
+    }, state);
+
+    expect(clay.dockCount).toEqual(1);
+
+    clay.deleteDock(0);
+
+    expect(clay.dockCount).toEqual(0);
+  });
 });
 
 describe('Node', () => {

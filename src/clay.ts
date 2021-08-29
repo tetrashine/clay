@@ -2,6 +2,7 @@
 import Base from 'displays/abstract/base';
 import Board from 'displays/board';
 import Node from 'displays/node';
+import Dock from 'displays/dock';
 import Button from 'menu/button';
 import ColorPalette from 'menu/colorpalette';
 import {
@@ -131,6 +132,37 @@ class Clay extends Base {
     return false;
   }
 
+  deleteNode(index: number): boolean {
+    if (index >= 0 && index < this.nodeCount) {
+      this._board.deleteNode(index);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  addDock(dockState: DockState): boolean {
+    if (Clay.validateDock(dockState)) {
+      const dock: Dock = new Dock(document, dockState);
+      this._board.addDock(dock);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  deleteDock(index: number): boolean {
+    if (index >= 0 && index < this.dockCount) {
+      this._board.deleteDock(index);
+
+      return true;
+    }
+
+    return false;
+  }
+
   export(): BoardState {
     const state = this._board.exportState();
     this.trigger('export', state);
@@ -188,7 +220,7 @@ class Clay extends Base {
   }
 
   static validateDock(state: DockState): boolean {
-    const { x, y, title, nodes } = state;
+    const { x, y, title, nodes=[] } = state;
     return (
       typeof(title) === 'string'
       && typeof(x) === 'number'
@@ -738,11 +770,15 @@ class Clay extends Base {
     this._selectedBtn = undefined;
   }
 
-  get nodeCount() {
+  get dockCount(): number {
+    return this._board.dockCount;
+  }
+
+  get nodeCount(): number {
     return this._board.nodeCount;
   }
 
-  get linkCount() {
+  get linkCount(): number {
     return this._board.linkCount;
   }
 }

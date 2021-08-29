@@ -64,7 +64,7 @@ type DockState = {
   x: number, 
   y: number, 
   title: string,
-  nodes: number[],
+  nodes?: number[],
   color?: string,
 };
 

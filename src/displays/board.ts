@@ -1,5 +1,6 @@
 import Base from 'displays/abstract/base';
 
+import Dock from 'displays/dock';
 import Node from 'displays/node';
 import Link from 'displays/link';
 import Mouse from 'displays/mouse';
@@ -10,7 +11,7 @@ import {ZoomMode} from 'constants/zoommode';
 import { Point, NodeConfig, LinkState, BoardState, DockState } from 'types/index';
 
 import { default as config } from 'constants/config';
-import Dock from './dock';
+
 const {
   LINK_COLOR, LINK_SELECTED_COLOR,
   NODE_CONNECTOR_COLOR, NODE_CONNECTOR_SELECTED_COLOR, NODE_CONNECTOR_BORDER_COLOR, NODE_CONNECTOR_HOVER_COLOR
@@ -161,10 +162,15 @@ class Board extends Base {
   }
 
   parseNodes(doc: any, configs: NodeConfig[], editable: boolean): Node[] {
-    return configs.map((config: NodeConfig) => new Node(doc, {
-      editable: editable,
-      ...config,
-    }));
+    return configs.map((config: NodeConfig, index: number) => {
+      const node = new Node(doc, {
+        editable: editable,
+        ...config,
+      });
+      node.setIndex(index);
+
+      return node;
+    });
   }
 
   parseLinks(doc: any, states: LinkState[], nodes: Node[], editable: boolean): Link[] {
@@ -317,6 +323,22 @@ class Board extends Base {
   addLink(link: Link): void { 
     this._links.push(link);
     this.appendChild(link);
+  }
+
+  deleteDock(index: number): void {  
+    const dock: Dock = this._docks[index];
+    this._docks.splice(index, 1);
+    dock.destroy();
+
+    this._docks.forEach((dock: Dock, index: number) => dock.setIndex(index));
+  }
+
+  deleteNode(index: number): void {
+    const node: Node = this._nodes[index];
+    this._nodes.splice(index, 1);
+    node.destroy();
+
+    this._nodes.forEach((node: Node, index: number) => node.setIndex(index));
   }
 
   addLinkState(linkState: LinkState): void {
@@ -514,11 +536,10 @@ class Board extends Base {
   }
 
   delete(item: any): void {
-    //if node, delete links related to it
-    if (this._nodes.indexOf(item) >= 0) {
-      this._nodes.splice(this._nodes.indexOf(item), 1);
-      item.off('dragend', this.onNodeDragEnds.bind(this, item));
-      this._nodes.forEach((node: Node, index: number) => node.setIndex(index));
+    if (item instanceof Dock) {
+      this.deleteDock(this._docks.indexOf(item));
+    } else if (this._nodes.indexOf(item) >= 0) {
+      this.deleteNode(this._nodes.indexOf(item));
     } else if (this._links.indexOf(item) >= 0) {
       // if link
       this._links.splice(this._links.indexOf(item), 1);
@@ -541,11 +562,15 @@ class Board extends Base {
     return this._scale;
   }
 
-  get nodeCount() {
+  get dockCount(): number {
+    return this._docks.length;
+  }
+
+  get nodeCount(): number {
     return this._nodes.length;
   }
 
-  get linkCount() {
+  get linkCount(): number {
     return this._links.length;
   }
   //#endregion

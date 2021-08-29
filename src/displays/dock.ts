@@ -22,16 +22,17 @@ export default class Dock extends Draggable {
   private _editable: boolean;
   private _index: number;
   private _nodes: Node[];
-  
+  private _nodeNums: number[];  
 
   constructor(doc: any, state: DockState, nodes: Node[] = []) {
     super();
-    const {width=DOCK_WIDTH, height, editable, nodes: nodeNums} = state;
+    const {width=DOCK_WIDTH, height, editable, nodes: nodeNums = []} = state;
     this._doc = doc;
     this._width = width;
     this._height = height;
     this._editable = editable;
     this._nodes = [];
+    this._nodeNums = [];
     this._state = state;
 
     this.initialize(doc, state);
@@ -130,6 +131,7 @@ export default class Dock extends Draggable {
 
   addNode(node: Node): void {
     this._nodes.push(node);
+    this._nodeNums.push(node.getIndex());
     node.dock(this);
 
     const div = this.drawInnerDiv(node);
@@ -141,6 +143,7 @@ export default class Dock extends Draggable {
   removeNode(node: Node): void {
     const index = this._nodes.indexOf(node);
     this._nodes.splice(index, 1);
+    this._nodeNums.splice(index, 1);
     this._body.removeChild(this._body.childNodes[index]);
 
     this.redrawBody();
@@ -226,13 +229,13 @@ export default class Dock extends Draggable {
   }
 
   exportAsJson(): DockState {
-    const { editable, x, y, title, nodes } = this._state;
+    const { title } = this._state;
     const state: DockState = {
       "title": title,
-      "x": x,
-      "y": y,
-      "editable": editable,
-      "nodes": nodes,
+      "x": this.x,
+      "y": this.y,
+      "editable": this._editable,
+      "nodes": this._nodeNums,
     };
 
     return state;
